@@ -9,18 +9,18 @@ const innovatorLinks = [
   { to: "/dashboard/innovator/applications", label: "My Applications", icon: "◐" },
 ];
 
-const orgLinks = [
-  { to: "/dashboard/organization", label: "Dashboard", icon: "⊞" },
-  { to: "/dashboard/organization/post", label: "Post Opportunity", icon: "◈" },
-  { to: "/dashboard/organization/opportunities", label: "My Opportunities", icon: "◉" },
-  { to: "/dashboard/organization/applications", label: "Applications", icon: "◐" },
+const funderLinks = [
+  { to: "/dashboard/funder", label: "Dashboard", icon: "⊞" },
+  { to: "/dashboard/funder/post", label: "Post Opportunity", icon: "◈" },
+  { to: "/dashboard/funder/opportunities", label: "My Opportunities", icon: "◉" },
+  { to: "/dashboard/funder/applications", label: "Applications", icon: "◐" },
 ];
 
 export default function Sidebar() {
   const { user, logout } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
-  const links = user?.role === "innovator" ? innovatorLinks : orgLinks;
+  const links = user?.role === "innovator" ? innovatorLinks : funderLinks;
 
   return (
     <aside className="sidebar">

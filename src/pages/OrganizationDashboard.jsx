@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import "./OrganizationDashboard.css";
+import "./FunderDashboard.css";
 
 const phases = [
   { id: "idea", label: "Idea", color: "#0284c7" },
@@ -11,7 +11,7 @@ const phases = [
   { id: "scaling", label: "Scaling", color: "#ea580c" },
 ];
 
-const innovatorProjects = [
+const mockProjects = [
   {
     id: 1,
     name: "Smart Water Monitor",
@@ -58,17 +58,18 @@ const innovatorProjects = [
   },
 ];
 
-const opportunities = [
-  { title: "Green Tech Innovation Grant", deadline: "Jun 30, 2026", applicants: 18, status: "Open", type: "Grant" },
-  { title: "Women in STEM Accelerator", deadline: "Jul 15, 2026", applicants: 34, status: "Open", type: "Accelerator" },
-  { title: "Digital Health Hackathon", deadline: "May 20, 2026", applicants: 52, status: "Closed", type: "Hackathon" },
-];
-
-const applications = [
+const recentApplications = [
   { project: "Smart Water Monitor", innovator: "Alex Johnson", status: "Under Review", date: "May 18, 2026" },
   { project: "AI Crop Detector", innovator: "Fatima Hassan", status: "Shortlisted", date: "May 16, 2026" },
   { project: "P2P Microfinance", innovator: "James Odhiambo", status: "Rejected", date: "May 14, 2026" },
   { project: "EduBot Platform", innovator: "Priya Mwangi", status: "Accepted", date: "May 12, 2026" },
+];
+
+const activities = [
+  { icon: "apply", text: "<strong>Alex Johnson</strong> applied to Green Tech Grant", time: "2 hours ago" },
+  { icon: "accept", text: "<strong>Fatima Hassan</strong> was shortlisted", time: "5 hours ago" },
+  { icon: "post", text: "You posted <strong>Women in STEM Accelerator</strong>", time: "Yesterday" },
+  { icon: "reject", text: "<strong>James Odhiambo's</strong> application was rejected", time: "2 days ago" },
 ];
 
 const statusConfig = {
@@ -76,14 +77,6 @@ const statusConfig = {
   "Shortlisted": { bg: "#f3e8ff", color: "#7c3aed" },
   "Accepted": { bg: "#dcfce7", color: "#16a34a" },
   "Rejected": { bg: "#fee2e2", color: "#dc2626" },
-  "Open": { bg: "#dcfce7", color: "#16a34a" },
-  "Closed": { bg: "#f1f5f9", color: "#64748b" },
-};
-
-const typeConfig = {
-  "Grant": { bg: "#e0f2fe", color: "#0284c7" },
-  "Accelerator": { bg: "#f3e8ff", color: "#7c3aed" },
-  "Hackathon": { bg: "#ffedd5", color: "#ea580c" },
 };
 
 const phaseColors = {
@@ -98,25 +91,15 @@ export default function OrganizationDashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [selectedProject, setSelectedProject] = useState(null);
-  const [showProjectModal, setShowProjectModal] = useState(false);
-  const [activeTab, setActiveTab] = useState("opportunities");
 
   const handleLogout = () => {
     localStorage.removeItem("token");
     navigate("/login");
   };
 
-  const viewProjectDetails = (project) => {
-    setSelectedProject(project);
-    setShowProjectModal(true);
-  };
-
-  const formatDate = (dateStr) => {
-    return new Date(dateStr).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-  };
-
   return (
     <div className="dashboard">
+      {/* Sidebar */}
       <aside className="sidebar">
         <div className="sidebar-header">
           <div className="sidebar-logo">
@@ -181,15 +164,26 @@ export default function OrganizationDashboard() {
         </div>
       </aside>
 
+      {/* Main Content */}
       <main className="main-content">
         <header className="top-bar">
           <div className="top-bar-left">
-            <h1 className="page-title">Organization Dashboard</h1>
-            <p className="page-subtitle">Manage opportunities and review applications</p>
+            <h1 className="page-title">Funder Dashboard</h1>
+            <p className="page-subtitle">Welcome back, {user?.name || 'Organization'}</p>
+          </div>
+          <div className="top-bar-right">
+            <div className="search-box">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="11" cy="11" r="8" />
+                <path d="m21 21-4.35-4.35" />
+              </svg>
+              <input type="text" placeholder="Search projects..." className="search-input" />
+            </div>
           </div>
         </header>
 
         <div className="dashboard-content">
+          {/* Stats Grid */}
           <div className="stats-grid">
             <div className="stat-card">
               <div className="stat-icon stat-card-blue">
@@ -241,20 +235,54 @@ export default function OrganizationDashboard() {
             </div>
           </div>
 
+          {/* Quick Actions */}
+          <div className="quick-actions">
+            <Link to="/dashboard/funder/post" className="action-card">
+              <div className="action-icon post">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="12" cy="12" r="10" />
+                  <line x1="12" y1="8" x2="12" y2="16" />
+                  <line x1="8" y1="12" x2="16" y2="12" />
+                </svg>
+              </div>
+              <span className="action-title">Post New Opportunity</span>
+              <span className="action-desc">Create a grant, accelerator, or challenge</span>
+            </Link>
+            <Link to="/dashboard/funder/applications" className="action-card">
+              <div className="action-icon review">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                  <polyline points="14 2 14 8 20 8" />
+                </svg>
+              </div>
+              <span className="action-title">Review Applications</span>
+              <span className="action-desc">Assess and respond to submissions</span>
+            </Link>
+            <Link to="/dashboard/funder/opportunities" className="action-card">
+              <div className="action-icon list">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+                </svg>
+              </div>
+              <span className="action-title">Manage Opportunities</span>
+              <span className="action-desc">View and edit your postings</span>
+            </Link>
+          </div>
+
+          {/* Dashboard Grid */}
           <div className="dashboard-grid">
+            {/* Funded Projects */}
             <div className="card">
               <div className="card-header">
                 <h3 className="card-title">Funded Projects</h3>
+                <Link to="#" className="card-link">View All</Link>
               </div>
               <div className="projects-list">
-                {innovatorProjects.map((project) => (
-                  <div key={project.id} className="project-item" onClick={() => viewProjectDetails(project)}>
+                {mockProjects.map((project) => (
+                  <div key={project.id} className="project-item" onClick={() => setSelectedProject(project)}>
                     <div className="project-header">
                       <h4 className="project-name">{project.name}</h4>
-                      <span
-                        className="phase-badge"
-                        style={{ background: phaseColors[project.phase]?.bg, color: phaseColors[project.phase]?.color }}
-                      >
+                      <span className="phase-badge" style={{ background: phaseColors[project.phase]?.bg, color: phaseColors[project.phase]?.color }}>
                         {project.phase.charAt(0).toUpperCase() + project.phase.slice(1)}
                       </span>
                     </div>
@@ -266,12 +294,8 @@ export default function OrganizationDashboard() {
                       <span className="progress-text">{project.progress}%</span>
                     </div>
                     <div className="phase-timeline">
-                      {phases.map((phase, index) => (
-                        <div
-                          key={phase.id}
-                          className={`timeline-phase ${project.completedMilestones.some(m => m.startsWith(phase.id)) ? 'completed' : ''}`}
-                          style={{ opacity: project.completedMilestones.some(m => m.startsWith(phase.id)) ? 1 : 0.3 }}
-                        >
+                      {phases.map((phase) => (
+                        <div key={phase.id} className={`timeline-phase ${project.completedMilestones.some(m => m.startsWith(phase.id)) ? 'completed' : ''}`}>
                           <div className="phase-dot" style={{ background: phase.color }}></div>
                           <span className="phase-label">{phase.label}</span>
                         </div>
@@ -282,39 +306,89 @@ export default function OrganizationDashboard() {
               </div>
             </div>
 
-            <div className="card">
-              <div className="card-header">
-                <h3 className="card-title">Recent Applications</h3>
-                <Link to="/dashboard/funder/applications" className="card-link">View All</Link>
-              </div>
-              <div className="applications-list">
-                {applications.map((app, index) => (
-                  <div key={index} className="application-item">
-                    <div className="application-info">
-                      <p className="application-title">{app.project}</p>
-                      <p className="application-org">{app.innovator}</p>
-                      <p className="application-date">{app.date}</p>
+            {/* Right Column */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+              {/* Recent Applications */}
+              <div className="card">
+                <div className="card-header">
+                  <h3 className="card-title">Recent Applications</h3>
+                  <Link to="/dashboard/funder/applications" className="card-link">View All</Link>
+                </div>
+                <div className="applications-list">
+                  {recentApplications.map((app, index) => (
+                    <div key={index} className="application-item">
+                      <div className="application-info">
+                        <p className="application-title">{app.project}</p>
+                        <p className="application-org">{app.innovator}</p>
+                        <p className="application-date">{app.date}</p>
+                      </div>
+                      <span className="status-badge" style={{ background: statusConfig[app.status]?.bg, color: statusConfig[app.status]?.color }}>
+                        {app.status}
+                      </span>
                     </div>
-                    <span
-                      className="status-badge"
-                      style={{ background: statusConfig[app.status]?.bg, color: statusConfig[app.status]?.color }}
-                    >
-                      {app.status}
-                    </span>
-                  </div>
-                ))}
+                  ))}
+                </div>
+              </div>
+
+              {/* Activity Feed */}
+              <div className="card">
+                <div className="card-header">
+                  <h3 className="card-title">Recent Activity</h3>
+                </div>
+                <div className="activity-feed">
+                  {activities.map((activity, index) => (
+                    <div key={index} className="activity-item">
+                      <div className={`activity-icon ${activity.icon}`}>
+                        {activity.icon === 'apply' && (
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                            <polyline points="14 2 14 8 20 8" />
+                          </svg>
+                        )}
+                        {activity.icon === 'accept' && (
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <polyline points="20 6 9 17 4 12" />
+                          </svg>
+                        )}
+                        {activity.icon === 'reject' && (
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <line x1="18" y1="6" x2="6" y2="18" />
+                            <line x1="6" y1="6" x2="18" y2="18" />
+                          </svg>
+                        )}
+                        {activity.icon === 'post' && (
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <circle cx="12" cy="12" r="10" />
+                            <line x1="12" y1="8" x2="12" y2="16" />
+                            <line x1="8" y1="12" x2="16" y2="12" />
+                          </svg>
+                        )}
+                      </div>
+                      <div className="activity-content">
+                        <p className="activity-text" dangerouslySetInnerHTML={{ __html: activity.text }}></p>
+                        <span className="activity-time">{activity.time}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
         </div>
       </main>
 
-      {showProjectModal && selectedProject && (
-        <div className="modal-overlay" onClick={() => setShowProjectModal(false)}>
+      {/* Project Detail Modal */}
+      {selectedProject && (
+        <div className="modal-overlay" onClick={() => setSelectedProject(null)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h2>{selectedProject.name}</h2>
-              <button className="modal-close" onClick={() => setShowProjectModal(false)}>×</button>
+              <button className="modal-close" onClick={() => setSelectedProject(null)}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
             </div>
             <div className="modal-body">
               <div className="modal-section">
@@ -326,11 +400,8 @@ export default function OrganizationDashboard() {
                 <p>{selectedProject.category}</p>
               </div>
               <div className="modal-section">
-                <h4>Phase</h4>
-                <span
-                  className="phase-badge"
-                  style={{ background: phaseColors[selectedProject.phase]?.bg, color: phaseColors[selectedProject.phase]?.color }}
-                >
+                <h4>Current Phase</h4>
+                <span className="phase-badge" style={{ background: phaseColors[selectedProject.phase]?.bg, color: phaseColors[selectedProject.phase]?.color }}>
                   {selectedProject.phase.charAt(0).toUpperCase() + selectedProject.phase.slice(1)}
                 </span>
               </div>
