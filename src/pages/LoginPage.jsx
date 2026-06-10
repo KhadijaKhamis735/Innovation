@@ -158,6 +158,12 @@ export default function LoginPage() {
               Create one
             </Link>
           </p>
+
+          <p className="auth-admin-link">
+            <Link to="/admin/login" className="auth-admin-link-text">
+              Admin Login
+            </Link>
+          </p>
         </div>
       </div>
 

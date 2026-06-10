@@ -309,6 +309,25 @@
   text-decoration: underline;
 }
 
+.auth-admin-link {
+  text-align: center;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.auth-admin-link-text {
+  font-size: 13px;
+  color: #64748b;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.auth-admin-link-text:hover {
+  color: #f97316;
+  text-decoration: underline;
+}
+
 /* Organization notice */
 .auth-notice {
   background: linear-gradient(135deg, rgba(249, 115, 22, 0.08), rgba(234, 88, 12, 0.08));
