@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { colors } from '../styles/colors';
 import Sidebar from '../components/Sidebar';
+import { useApp } from '../context/AppContext';
 
 const phases = [
   { id: 'idea', label: 'Idea', desc: 'Concept development', color: '#0284c7', bg: '#e0f2fe' },
@@ -81,7 +82,11 @@ const initialProjects = [
 ];
 
 export default function MyProjectsScreen({ navigation }) {
-  const [projects, setProjects] = useState(initialProjects);
+  // Read shared projects from AppContext instead of holding local state.
+  // This is what makes the Club → Innovation integration work: a project
+  // created inside the Club flow lands in the same list as the user's
+  // existing innovation projects.
+  const { projects, isClubMember } = useApp();
   const [selectedPhase, setSelectedPhase] = useState('all');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activeScreen, setActiveScreen] = useState('projects');
@@ -119,6 +124,7 @@ export default function MyProjectsScreen({ navigation }) {
           onClose={() => setSidebarOpen(false)}
           navigation={navigation}
           userType="innovator"
+          isClubMember={isClubMember}
         />
       )}
 
@@ -135,7 +141,12 @@ export default function MyProjectsScreen({ navigation }) {
           <Text style={styles.pageTitle}>My Projects</Text>
           <Text style={styles.pageSubtitle}>Track your innovation journey through each phase</Text>
         </View>
-        <View style={styles.topBarRight} />
+        <TouchableOpacity
+          style={styles.createBtn}
+          onPress={() => navigation.navigate('ClubCreateProject')}
+        >
+          <Text style={styles.createBtnText}>+ New</Text>
+        </TouchableOpacity>
       </View>
 
       <ScrollView
@@ -177,12 +188,17 @@ export default function MyProjectsScreen({ navigation }) {
               <TouchableOpacity
                 key={project.id}
                 style={styles.projectCard}
-                onPress={() => Alert.alert('Project Details', `${project.name}\nPhase: ${phaseInfo?.label}\nProgress: ${overallProgress}%`)}
+                onPress={() => navigation.navigate('ClubProjectDetail', { projectId: project.id })}
               >
                 <View style={styles.projectHeader}>
-                  <View>
+                  <View style={{ flex: 1 }}>
                     <Text style={styles.projectZsaId}>{project.zsaId}</Text>
                     <Text style={styles.projectName}>{project.name}</Text>
+                    {project.source === 'club' && (
+                      <View style={styles.clubTag}>
+                        <Text style={styles.clubTagText}>🎓 Club project</Text>
+                      </View>
+                    )}
                   </View>
                   <View style={[styles.phaseBadge, { backgroundColor: phaseInfo?.bg }]}>
                     <Text style={[styles.phaseText, { color: phaseInfo?.color }]}>{phaseInfo?.label}</Text>
@@ -289,6 +305,32 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
+  },
+  createBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    backgroundColor: colors.primary,
+    minHeight: 36,
+    justifyContent: 'center',
+  },
+  createBtnText: {
+    color: colors.white,
+    fontWeight: '700',
+    fontSize: 13,
+  },
+  clubTag: {
+    alignSelf: 'flex-start',
+    marginTop: 6,
+    backgroundColor: 'rgba(59, 130, 246, 0.12)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  clubTagText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#1d4ed8',
   },
   filterContainer: {
     flexDirection: 'row',

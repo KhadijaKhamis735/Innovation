@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { colors } from '../styles/colors';
 import Sidebar from '../components/Sidebar';
+import { useApp } from '../context/AppContext';
 
 const mockApplications = [
   {
@@ -39,6 +40,7 @@ const mockApplications = [
 ];
 
 export default function MyApplicationsScreen({ navigation }) {
+  const { isClubMember } = useApp();
   const [activeTab, setActiveTab] = useState('pending');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activeScreen, setActiveScreen] = useState('applications');
@@ -75,6 +77,7 @@ export default function MyApplicationsScreen({ navigation }) {
           onClose={() => setSidebarOpen(false)}
           navigation={navigation}
           userType="innovator"
+          isClubMember={isClubMember}
         />
       )}
 

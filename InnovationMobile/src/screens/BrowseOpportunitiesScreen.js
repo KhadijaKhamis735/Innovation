@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { colors } from '../styles/colors';
 import Sidebar from '../components/Sidebar';
+import { useApp } from '../context/AppContext';
 
 const mockOpportunities = [
   {
@@ -55,6 +56,7 @@ const mockOpportunities = [
 ];
 
 export default function BrowseOpportunitiesScreen({ navigation }) {
+  const { isClubMember } = useApp();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedType, setSelectedType] = useState('All');
   const [selectedOpportunity, setSelectedOpportunity] = useState(null);
@@ -128,6 +130,7 @@ export default function BrowseOpportunitiesScreen({ navigation }) {
           onClose={() => setSidebarOpen(false)}
           navigation={navigation}
           userType="innovator"
+          isClubMember={isClubMember}
         />
       )}
 

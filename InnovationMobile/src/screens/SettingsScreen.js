@@ -10,8 +10,10 @@ import {
 } from 'react-native';
 import { colors } from '../styles/colors';
 import Sidebar from '../components/Sidebar';
+import { useApp } from '../context/AppContext';
 
 export default function SettingsScreen({ navigation }) {
+  const { isClubMember } = useApp();
   const [notifications, setNotifications] = useState(true);
   const [emailUpdates, setEmailUpdates] = useState(true);
   const [darkMode, setDarkMode] = useState(false);
@@ -27,6 +29,7 @@ export default function SettingsScreen({ navigation }) {
           onClose={() => setSidebarOpen(false)}
           navigation={navigation}
           userType="innovator"
+          isClubMember={isClubMember}
         />
       )}
 

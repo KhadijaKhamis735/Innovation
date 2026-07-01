@@ -9,8 +9,10 @@ import {
 } from 'react-native';
 import { colors } from '../styles/colors';
 import Sidebar from '../components/Sidebar';
+import { useApp } from '../context/AppContext';
 
 export default function MessagesScreen({ navigation }) {
+  const { isClubMember } = useApp();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activeScreen, setActiveScreen] = useState('messages');
 
@@ -23,6 +25,7 @@ export default function MessagesScreen({ navigation }) {
           onClose={() => setSidebarOpen(false)}
           navigation={navigation}
           userType="innovator"
+          isClubMember={isClubMember}
         />
       )}
 

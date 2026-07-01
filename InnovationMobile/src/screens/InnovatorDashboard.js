@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { colors } from '../styles/colors';
 import Sidebar from '../components/Sidebar';
+import { useApp } from '../context/AppContext';
 
 // Mirrors web `InnovatorDashboard` data
 const stats = [
@@ -81,8 +82,12 @@ export default function InnovatorDashboard({ navigation }) {
   const [notifOpen, setNotifOpen] = useState(false);
   const [activeScreen, setActiveScreen] = useState('dashboard');
 
+  // Pull user + club status from context so the Sidebar and Quick
+  // Actions can react to the user's role(s).
+  const { user: appUser, isClubMember } = useApp();
+
   // Mirrors the web's `user?.firstName`
-  const user = { firstName: 'Innovator', lastName: '' };
+  const user = { firstName: appUser.firstName || 'Innovator', lastName: appUser.lastName || '' };
 
   const handleSidebarNav = (screen) => {
     setActiveScreen(screen);
@@ -102,6 +107,7 @@ export default function InnovatorDashboard({ navigation }) {
           onNavigate={handleSidebarNav}
           onClose={() => setSidebarOpen(false)}
           navigation={navigation}
+          isClubMember={isClubMember}
         />
       )}
 
@@ -285,6 +291,46 @@ export default function InnovatorDashboard({ navigation }) {
                 </View>
               </TouchableOpacity>
             ))}
+          </View>
+        </View>
+
+        {/* Club — surfaces the club module from the innovator side */}
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.cardTitle}>Club</Text>
+              <Text style={styles.cardSubtitle}>
+                {isClubMember
+                  ? 'You\'re a member. Access club activities, leadership, and your shared projects.'
+                  : 'Join the club to unlock activities, leadership, and shared projects.'}
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.clubRow}>
+            <View style={[styles.clubBadge, isClubMember ? styles.clubBadgeActive : styles.clubBadgeInactive]}>
+              <Text style={styles.clubBadgeIcon}>{isClubMember ? '🎓' : '✚'}</Text>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.clubLabel}>
+                {isClubMember ? 'Club membership' : 'Become a club member'}
+              </Text>
+              <Text style={styles.clubMeta}>
+                {isClubMember
+                  ? `Status: ${appUser.membershipStatus}`
+                  : 'Pick your university + reg number'}
+              </Text>
+            </View>
+            <TouchableOpacity
+              style={[styles.clubBtn, isClubMember ? styles.clubBtnSecondary : styles.clubBtnPrimary]}
+              onPress={() =>
+                navigation.navigate(isClubMember ? 'ClubDashboard' : 'ClubRegistration')
+              }
+            >
+              <Text style={[styles.clubBtnText, isClubMember ? styles.clubBtnTextSecondary : styles.clubBtnTextPrimary]}>
+                {isClubMember ? 'Open →' : 'Join →'}
+              </Text>
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -700,6 +746,43 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white,
     gap: 12,
   },
+
+  /* Club card on Innovator Dashboard */
+  cardSubtitle: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    marginTop: 4,
+    lineHeight: 16,
+  },
+  clubRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.background,
+  },
+  clubBadge: {
+    width: 44, height: 44, borderRadius: 12,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  clubBadgeActive:   { backgroundColor: colors.greenLight },
+  clubBadgeInactive: { backgroundColor: colors.primaryLight },
+  clubBadgeIcon: { fontSize: 22 },
+  clubLabel: { fontSize: 13, fontWeight: '700', color: colors.textPrimary },
+  clubMeta:  { fontSize: 11, color: colors.textSecondary, marginTop: 2, textTransform: 'capitalize' },
+  clubBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 10,
+  },
+  clubBtnPrimary:   { backgroundColor: colors.primary },
+  clubBtnSecondary: { backgroundColor: colors.white, borderWidth: 1, borderColor: colors.border },
+  clubBtnText: { fontSize: 13, fontWeight: '700' },
+  clubBtnTextPrimary:   { color: colors.white },
+  clubBtnTextSecondary: { color: colors.textPrimary },
   helpIcon: {
     width: 40,
     height: 40,
