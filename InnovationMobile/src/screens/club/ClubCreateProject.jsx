@@ -15,6 +15,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { colors } from '../../styles/colors';
 import { useApp } from '../../context/AppContext';
+import Sidebar from '../../components/Sidebar';
 
 // ClubCreateProject
 // -----------------
@@ -49,6 +50,8 @@ export default function ClubCreateProject({ navigation }) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [activeScreen, setActiveScreen] = useState('clubDashboard');
 
   const handleSubmit = () => {
     if (name.trim().length < 3) {
@@ -87,6 +90,15 @@ export default function ClubCreateProject({ navigation }) {
 
   return (
     <SafeAreaView style={styles.container}>
+      {sidebarOpen && (
+        <Sidebar
+          activeScreen={activeScreen}
+          onNavigate={setActiveScreen}
+          onClose={() => setSidebarOpen(false)}
+          navigation={navigation}
+          userType="clubMember"
+        />
+      )}
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={{ flex: 1 }}
@@ -98,6 +110,13 @@ export default function ClubCreateProject({ navigation }) {
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
             <Text style={styles.backIcon}>‹</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.menuBtn}
+            onPress={() => setSidebarOpen(true)}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Text style={styles.menuIcon}>☰</Text>
           </TouchableOpacity>
           <View style={styles.topBarCenter}>
             <Text style={styles.pageTitle}>New project</Text>
@@ -272,6 +291,13 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: colors.border, backgroundColor: colors.white,
   },
   backIcon: { fontSize: 24, color: colors.textSecondary, marginTop: -2 },
+  menuBtn: {
+    width: 40, height: 40, borderRadius: 8,
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderColor: colors.border, backgroundColor: colors.white,
+    marginLeft: 8,
+  },
+  menuIcon: { fontSize: 20, color: colors.textSecondary },
   topBarCenter: { flex: 1 },
   pageTitle: { fontSize: 18, fontWeight: '700', color: colors.textPrimary },
   topBarRight: { width: 40 },

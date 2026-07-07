@@ -1,0 +1,164 @@
+/* ClubPending.css — page-specific layout. Tokens live in ClubShared.css. */
+
+.club-pending-page {
+  min-height: 100vh;
+  background: var(--club-bg);
+  font-family: 'Segoe UI', 'DM Sans', sans-serif;
+}
+
+.club-pending-content {
+  padding: 32px 24px 64px;
+  max-width: 640px;
+  margin: 0 auto;
+}
+
+.club-pending-card {
+  background: #fff;
+  border-radius: 20px;
+  padding: 36px 32px;
+  border: 1.5px solid;
+  text-align: center;
+  margin-bottom: 18px;
+  box-shadow: var(--club-shadow-md);
+}
+
+.club-pending-card.pending {
+  background: rgba(245, 158, 11, 0.05);
+  border-color: rgba(245, 158, 11, 0.25);
+}
+
+.club-pending-card.rejected {
+  background: #fef2f2;
+  border-color: #fecaca;
+}
+
+.club-pending-icon {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 36px;
+  margin: 0 auto 18px;
+}
+
+.club-pending-card.pending .club-pending-icon {
+  background: rgba(245, 158, 11, 0.18);
+}
+
+.club-pending-card.rejected .club-pending-icon {
+  background: #fecaca;
+}
+
+.club-pending-title {
+  font-size: 24px;
+  font-weight: 800;
+  margin: 0 0 8px;
+  color: #92400e;
+}
+
+.club-pending-card.rejected .club-pending-title {
+  color: #b91c1c;
+}
+
+.club-pending-body {
+  font-size: 15px;
+  line-height: 1.6;
+  margin: 0 0 18px;
+  color: #78350f;
+}
+
+.club-pending-card.rejected .club-pending-body {
+  color: #7f1d1d;
+}
+
+.club-pending-meta-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.club-pending-meta-text {
+  font-size: 12px;
+  color: #78350f;
+}
+
+.club-pending-reason {
+  background: #fff;
+  border: 1px solid #fecaca;
+  border-radius: 14px;
+  padding: 18px 20px;
+  margin-bottom: 18px;
+}
+
+.club-pending-reason-label {
+  font-size: 11px;
+  font-weight: 800;
+  color: #b91c1c;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  margin: 0 0 6px;
+}
+
+.club-pending-reason-text {
+  font-size: 14px;
+  color: var(--club-text);
+  line-height: 1.6;
+  margin: 0;
+}
+
+.club-pending-details {
+  background: #fff;
+  border: 1px solid var(--club-border);
+  border-radius: 14px;
+  padding: 18px 20px;
+  margin-bottom: 22px;
+}
+
+.club-pending-details-title {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--club-text);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  margin: 0 0 14px;
+}
+
+.club-pending-detail-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--club-border);
+  gap: 16px;
+}
+
+.club-pending-detail-row:last-child {
+  border-bottom: none;
+}
+
+.club-pending-detail-key {
+  font-size: 13px;
+  color: var(--club-text-2);
+}
+
+.club-pending-detail-val {
+  font-size: 13px;
+  color: var(--club-text);
+  font-weight: 600;
+  text-align: right;
+  flex-shrink: 1;
+  word-break: break-word;
+}
+
+.club-pending-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.club-pending-actions .club-btn-primary,
+.club-pending-actions .club-btn-secondary {
+  width: 100%;
+}

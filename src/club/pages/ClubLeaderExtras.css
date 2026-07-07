@@ -1,0 +1,117 @@
+/* Extra styles ONLY for things the InnovatorDashboard.css doesn't already define.
+   Imported on top of InnovatorDashboard.css so the two look like one system. */
+
+.club-queue-row {
+  cursor: pointer;
+}
+
+.club-queue-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: var(--orange-light);
+  color: var(--orange-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+/* Pending / Verified / Rejected status badges (only Verified/Rejected
+   existed in InnovatorDashboard.css under different names — we redefine here
+   under names that match the Club domain. */
+.status-pending {
+  background: rgba(245, 158, 11, 0.12);
+  color: #b45309;
+}
+
+.status-verified {
+  background: var(--green-light);
+  color: var(--green-primary);
+}
+
+.status-rejected {
+  background: rgba(239, 68, 68, 0.12);
+  color: #b91c1c;
+}
+
+/* Empty state */
+.empty-state {
+  text-align: center;
+  padding: 32px 16px;
+  color: var(--text-secondary);
+}
+
+.empty-state .empty-icon {
+  font-size: 36px;
+  margin-bottom: 8px;
+  opacity: 0.7;
+}
+
+.empty-state p {
+  margin: 0;
+  font-size: 14px;
+}
+
+/* Awaiting-verification banner for unverified members */
+.club-pending-banner {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 18px 22px;
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.25);
+  border-radius: var(--radius-lg);
+  margin-bottom: 32px;
+}
+
+.club-pending-banner-icon {
+  font-size: 28px;
+  line-height: 1;
+}
+
+.club-pending-banner-title {
+  margin: 0 0 4px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #92400e;
+}
+
+.club-pending-banner-text {
+  margin: 0;
+  font-size: 13px;
+  color: #78350f;
+  line-height: 1.5;
+  flex: 1;
+}
+
+/* My Club detail card content */
+.club-detail-card {
+  padding: 16px 0 0;
+}
+
+.club-detail-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 6px;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  margin-bottom: 12px;
+}
+
+.club-detail-name {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--text-primary);
+  margin: 0 0 6px;
+}
+
+.club-detail-meta {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin: 0 0 4px;
+}

@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { colors } from '../../styles/colors';
 import { useApp } from '../../context/AppContext';
+import Sidebar from '../../components/Sidebar';
 
 // ClubResourcesScreen
 // --------------------
@@ -33,6 +34,8 @@ const formatDateLong = (iso) => {
 export default function ClubResourcesScreen({ navigation }) {
   const { materials, announcements } = useApp();
   const [tab, setTab] = useState('materials');
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [activeScreen, setActiveScreen] = useState('clubResources');
 
   // Pinned announcements first, then the rest by date desc.
   const sortedAnnouncements = useMemo(() => {
@@ -59,14 +62,24 @@ export default function ClubResourcesScreen({ navigation }) {
 
   return (
     <View style={styles.root}>
+      {sidebarOpen && (
+        <Sidebar
+          activeScreen={activeScreen}
+          onNavigate={setActiveScreen}
+          onClose={() => setSidebarOpen(false)}
+          navigation={navigation}
+          userType="clubMember"
+        />
+      )}
+
       {/* Top bar */}
       <View style={styles.topBar}>
         <TouchableOpacity
           style={styles.menuBtn}
-          onPress={() => navigation.goBack()}
+          onPress={() => setSidebarOpen(true)}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
-          <Text style={styles.menuIcon}>‹</Text>
+          <Text style={styles.menuIcon}>☰</Text>
         </TouchableOpacity>
         <View style={styles.topBarCenter}>
           <Text style={styles.pageTitle}>Club Resources</Text>

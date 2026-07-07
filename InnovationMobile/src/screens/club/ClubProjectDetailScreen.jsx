@@ -13,6 +13,7 @@ import {
   Pressable,
 } from 'react-native';
 import { colors } from '../../styles/colors';
+import Sidebar from '../../components/Sidebar';
 import { useApp } from '../../context/AppContext';
 
 // ClubProjectDetailScreen
@@ -59,6 +60,8 @@ export default function ClubProjectDetailScreen({ navigation, route }) {
   const [evTitle, setEvTitle] = useState('');
   const [evType, setEvType] = useState('doc');
   const [evUrl, setEvUrl] = useState('');
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [activeScreen, setActiveScreen] = useState('clubDashboard');
 
   const evidence = useMemo(
     () => projectEvidence.filter((e) => e.projectId === projectId),
@@ -68,9 +71,25 @@ export default function ClubProjectDetailScreen({ navigation, route }) {
   if (!project) {
     return (
       <SafeAreaView style={styles.container}>
+        {sidebarOpen && (
+          <Sidebar
+            activeScreen={activeScreen}
+            onNavigate={setActiveScreen}
+            onClose={() => setSidebarOpen(false)}
+            navigation={navigation}
+            userType="clubMember"
+          />
+        )}
         <View style={styles.topBar}>
           <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
             <Text style={styles.backIcon}>‹</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.menuBtn}
+            onPress={() => setSidebarOpen(true)}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Text style={styles.menuIcon}>☰</Text>
           </TouchableOpacity>
           <View style={styles.topBarCenter}><Text style={styles.pageTitle}>Project</Text></View>
           <View style={styles.topBarRight} />
@@ -111,6 +130,15 @@ export default function ClubProjectDetailScreen({ navigation, route }) {
 
   return (
     <SafeAreaView style={styles.container}>
+      {sidebarOpen && (
+        <Sidebar
+          activeScreen={activeScreen}
+          onNavigate={setActiveScreen}
+          onClose={() => setSidebarOpen(false)}
+          navigation={navigation}
+          userType="clubMember"
+        />
+      )}
       <View style={styles.topBar}>
         <TouchableOpacity
           style={styles.backBtn}
@@ -118,6 +146,13 @@ export default function ClubProjectDetailScreen({ navigation, route }) {
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
           <Text style={styles.backIcon}>‹</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.menuBtn}
+          onPress={() => setSidebarOpen(true)}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <Text style={styles.menuIcon}>☰</Text>
         </TouchableOpacity>
         <View style={styles.topBarCenter}>
           <Text style={styles.pageTitle} numberOfLines={1}>Project</Text>
@@ -359,6 +394,13 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: colors.border, backgroundColor: colors.white,
   },
   backIcon: { fontSize: 24, color: colors.textSecondary, marginTop: -2 },
+  menuBtn: {
+    width: 40, height: 40, borderRadius: 8,
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderColor: colors.border, backgroundColor: colors.white,
+    marginLeft: 8,
+  },
+  menuIcon: { fontSize: 20, color: colors.textSecondary },
   topBarCenter: { flex: 1 },
   pageTitle: { fontSize: 18, fontWeight: '700', color: colors.textPrimary },
   topBarRight: { width: 40 },

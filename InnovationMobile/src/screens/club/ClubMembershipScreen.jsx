@@ -13,6 +13,7 @@ import {
 import { colors } from '../../styles/colors';
 import { clubStyles } from '../../styles/clubStyles';
 import { useApp } from '../../context/AppContext';
+import Sidebar from '../../components/Sidebar';
 
 // ClubMembershipScreen
 // --------------------
@@ -48,6 +49,8 @@ export default function ClubMembershipScreen({ navigation }) {
   const [bio, setBio] = useState(user.clubProfile?.bio || '');
   const [skills, setSkills] = useState((user.clubProfile?.skills || []).join(', '));
   const [saving, setSaving] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [activeScreen, setActiveScreen] = useState('clubMembership');
 
   const status = user.membershipStatus;
   const statusKey = STATUS_LABELS[status] ? status : 'none';
@@ -80,15 +83,25 @@ export default function ClubMembershipScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.container}>
+      {sidebarOpen && (
+        <Sidebar
+          activeScreen={activeScreen}
+          onNavigate={setActiveScreen}
+          onClose={() => setSidebarOpen(false)}
+          navigation={navigation}
+          userType="clubMember"
+        />
+      )}
+
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* Top bar — matches the existing dashboard pattern */}
         <View style={styles.topBar}>
           <TouchableOpacity
             style={styles.menuBtn}
-            onPress={() => navigation.navigate('Dashboard')}
+            onPress={() => setSidebarOpen(true)}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
-            <Text style={styles.menuIcon}>‹</Text>
+            <Text style={styles.menuIcon}>☰</Text>
           </TouchableOpacity>
           <View style={styles.topBarCenter}>
             <Text style={styles.pageTitle}>Club Membership</Text>

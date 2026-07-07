@@ -1,0 +1,202 @@
+/* ClubLanding.css — landing page only. The shared tokens live in ClubShared.css. */
+
+.club-landing-page {
+  min-height: 100vh;
+  background: #fff;
+  font-family: 'Segoe UI', 'DM Sans', sans-serif;
+  color: #1a1a2e;
+}
+
+.club-landing-hero {
+  background: linear-gradient(135deg, #fff8f0 0%, #ffffff 50%, #fff5eb 100%);
+  padding: 80px 24px 60px;
+  position: relative;
+  overflow: hidden;
+}
+
+.club-landing-hero-content {
+  max-width: 720px;
+  margin: 0 auto;
+  text-align: center;
+  position: relative;
+  z-index: 1;
+}
+
+.club-landing-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(249, 115, 22, 0.1);
+  border: 1px solid rgba(249, 115, 22, 0.2);
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--club-orange-dark);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  margin-bottom: 20px;
+}
+
+.club-landing-badge-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--club-orange);
+}
+
+.club-landing-title {
+  font-size: 44px;
+  font-weight: 800;
+  line-height: 1.15;
+  margin: 0 0 16px;
+  letter-spacing: -0.02em;
+  color: #1a1a2e;
+}
+
+.club-landing-title-accent {
+  color: var(--club-orange);
+}
+
+.club-landing-desc {
+  font-size: 16px;
+  line-height: 1.7;
+  color: #4a5568;
+  margin: 0 auto 36px;
+  max-width: 560px;
+}
+
+.club-landing-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  margin-bottom: 28px;
+  flex-wrap: wrap;
+}
+
+.club-landing-actions .club-btn-primary,
+.club-landing-actions .club-btn-secondary {
+  width: auto;
+  min-width: 240px;
+  padding: 16px 28px;
+  font-size: 15px;
+}
+
+.club-landing-register-cta {
+  text-align: center;
+  font-size: 14px;
+  color: var(--club-text-2);
+}
+
+.club-landing-register-cta a {
+  color: var(--club-orange);
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.club-landing-register-cta a:hover {
+  text-decoration: underline;
+}
+
+/* Universities strip */
+.club-landing-uni-strip {
+  background: #0a1f3c;
+  padding: 60px 24px;
+  color: #fff;
+}
+
+.club-landing-uni-strip-inner {
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.club-landing-uni-strip-title {
+  font-size: 13px;
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  margin: 0 0 24px;
+  text-align: center;
+}
+
+.club-landing-uni-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+}
+
+.club-landing-uni-chip {
+  background: rgba(255, 255, 255, 0.06);
+  border-left: 4px solid var(--club-orange);
+  padding: 18px 20px;
+  border-radius: 10px;
+}
+
+.club-landing-uni-chip-name {
+  color: #fff;
+  font-size: 16px;
+  font-weight: 700;
+  margin: 0 0 4px;
+}
+
+.club-landing-uni-chip-tagline {
+  color: #94a3b8;
+  font-size: 12px;
+  margin: 0;
+}
+
+.club-landing-uni-note {
+  text-align: center;
+  color: #64748b;
+  font-size: 12px;
+  margin-top: 20px;
+}
+
+/* Features */
+.club-landing-features {
+  padding: 80px 24px;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.club-landing-features-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 20px;
+}
+
+.club-landing-feature-card {
+  background: #fff;
+  border: 1px solid var(--club-border);
+  border-radius: 18px;
+  padding: 24px;
+  box-shadow: var(--club-shadow-sm);
+}
+
+.club-landing-feature-icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #fff8f0, #fff5eb);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  margin-bottom: 14px;
+}
+
+.club-landing-feature-title {
+  font-size: 16px;
+  font-weight: 700;
+  margin: 0 0 6px;
+  color: var(--club-text);
+}
+
+.club-landing-feature-desc {
+  font-size: 13px;
+  color: var(--club-text-2);
+  line-height: 1.6;
+  margin: 0;
+}

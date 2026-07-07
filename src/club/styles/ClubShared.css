@@ -1,0 +1,3201 @@
+/* Shared design tokens & utilities for Club Management.
+   Imported once globally; each page also pulls its own page-specific CSS. */
+
+:root {
+  --club-orange: #f97316;
+  --club-orange-dark: #ea580c;
+  --club-orange-light: rgba(249, 115, 22, 0.08);
+  --club-orange-border: rgba(249, 115, 22, 0.25);
+
+  --club-text: #1e293b;
+  --club-text-2: #64748b;
+  --club-text-3: #94a3b8;
+  --club-bg: #f8fafc;
+  --club-border: #e2e8f0;
+  --club-white: #ffffff;
+
+  --club-success: #10b981;
+  --club-error: #ef4444;
+  --club-warning: #f59e0b;
+  --club-info: #3b82f6;
+
+  --club-shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.06), 0 1px 2px rgba(15, 23, 42, 0.04);
+  --club-shadow-md: 0 4px 6px -1px rgba(15, 23, 42, 0.08), 0 2px 4px -2px rgba(15, 23, 42, 0.06);
+  --club-shadow-lg: 0 10px 25px -5px rgba(15, 23, 42, 0.12), 0 8px 10px -6px rgba(15, 23, 42, 0.08);
+  --club-shadow-orange: 0 4px 14px rgba(249, 115, 22, 0.35);
+}
+
+/* -------- Brand header (gradient header bar) -------- */
+.club-brand-header {
+  background: linear-gradient(135deg, #1a1a2e 0%, #2d1f0f 50%, #1a1a2e 100%);
+  padding: 28px 32px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.club-brand-header.compact {
+  padding: 18px 32px;
+}
+
+.club-brand-logo {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, var(--club-orange), var(--club-orange-dark));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-weight: 700;
+  font-size: 22px;
+  flex-shrink: 0;
+}
+
+.club-brand-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.club-brand-name {
+  font-size: 17px;
+  font-weight: 700;
+  color: #fff;
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+
+.club-brand-tagline {
+  font-size: 12px;
+  color: #cbd5e1;
+  margin: 2px 0 0;
+}
+
+.club-brand-back {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.club-brand-back:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+/* -------- Form section (centered, padded, max-width) -------- */
+.club-form-section {
+  width: 100%;
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 32px 24px;
+}
+
+.club-form-section.compact {
+  padding: 20px 24px;
+}
+
+.club-form-heading {
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--club-text);
+  margin: 0 0 6px;
+  letter-spacing: -0.02em;
+}
+
+.club-form-subheading {
+  font-size: 14px;
+  color: var(--club-text-2);
+  margin: 0 0 24px;
+  line-height: 1.5;
+}
+
+/* -------- Notice callouts -------- */
+.club-notice {
+  background: var(--club-orange-light);
+  border: 1px solid var(--club-orange-border);
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 18px;
+  font-size: 13px;
+  color: #92400e;
+  line-height: 1.5;
+}
+
+.club-notice.info {
+  background: rgba(59, 130, 246, 0.08);
+  border-color: rgba(59, 130, 246, 0.2);
+  color: #1e3a8a;
+}
+
+.club-notice.error {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #b91c1c;
+}
+
+.club-notice strong {
+  color: var(--club-orange-dark);
+}
+
+.club-notice.info strong {
+  color: #1d4ed8;
+}
+
+.club-notice.error strong {
+  color: #b91c1c;
+}
+
+/* -------- Form inputs -------- */
+.club-form-group {
+  margin-bottom: 18px;
+}
+
+.club-form-row-2 {
+  display: flex;
+  gap: 12px;
+}
+
+.club-form-row-2 > * {
+  flex: 1;
+}
+
+.club-form-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 8px;
+}
+
+.club-form-sublabel {
+  display: block;
+  font-size: 12px;
+  color: var(--club-text-3);
+  margin: -4px 0 10px;
+}
+
+.club-form-input,
+.club-form-textarea {
+  width: 100%;
+  border: 1.5px solid var(--club-border);
+  border-radius: 12px;
+  padding: 13px 16px;
+  font-size: 14px;
+  color: var(--club-text);
+  background: var(--club-white);
+  font-family: inherit;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  box-sizing: border-box;
+}
+
+.club-form-input:focus,
+.club-form-textarea:focus {
+  outline: none;
+  border-color: var(--club-orange);
+  box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.15);
+}
+
+.club-form-textarea {
+  min-height: 120px;
+  resize: vertical;
+  line-height: 1.5;
+}
+
+.club-password-wrap {
+  position: relative;
+}
+
+.club-password-wrap .club-form-input {
+  padding-right: 48px;
+}
+
+/* -------- Membership category picker (IBARA YA 11) -------- */
+.club-category-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.club-category-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 14px;
+  background: var(--club-white);
+  border: 1.5px solid var(--club-border);
+  border-radius: 12px;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
+}
+
+.club-category-card:hover {
+  border-color: var(--club-orange);
+  background: #fff8f1;
+}
+
+.club-category-card.is-selected {
+  border-color: var(--club-orange);
+  background: linear-gradient(135deg, rgba(249, 115, 22, 0.08), rgba(234, 88, 12, 0.06));
+  box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.15);
+}
+
+.club-category-icon {
+  font-size: 22px;
+  line-height: 1;
+}
+
+.club-category-label {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--club-text);
+}
+
+.club-category-desc {
+  font-size: 12px;
+  color: var(--club-text-2);
+  line-height: 1.4;
+}
+
+.club-eye-btn {
+  position: absolute;
+  right: 6px;
+  top: 0;
+  bottom: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 18px;
+  padding: 0 10px;
+  color: var(--club-text-2);
+}
+
+.club-error-box {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 12px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  font-size: 13px;
+  color: #dc2626;
+}
+
+/* -------- Buttons -------- */
+.club-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 14px 20px;
+  background: linear-gradient(135deg, var(--club-orange), var(--club-orange-dark));
+  color: #fff;
+  border: none;
+  border-radius: 12px;
+  font-weight: 700;
+  font-size: 15px;
+  cursor: pointer;
+  box-shadow: var(--club-shadow-orange);
+  transition: transform 0.15s, box-shadow 0.15s;
+  font-family: inherit;
+}
+
+.club-btn-primary:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(249, 115, 22, 0.45);
+}
+
+.club-btn-primary:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.club-btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 14px 20px;
+  background: #fff;
+  color: var(--club-text);
+  border: 1.5px solid var(--club-border);
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 15px;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: inherit;
+}
+
+.club-btn-secondary:hover {
+  border-color: var(--club-orange);
+  color: var(--club-orange);
+}
+
+.club-btn-outline {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 13px 20px;
+  background: transparent;
+  color: var(--club-text);
+  border: 1.5px solid var(--club-border);
+  border-radius: 12px;
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: inherit;
+}
+
+.club-btn-outline:hover {
+  border-color: var(--club-text-2);
+}
+
+.club-btn-danger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 14px 20px;
+  background: #fff;
+  color: var(--club-error);
+  border: 1.5px solid var(--club-error);
+  border-radius: 12px;
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: inherit;
+}
+
+.club-btn-danger:hover {
+  background: var(--club-error);
+  color: #fff;
+}
+
+.club-btn-success {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 14px 20px;
+  background: var(--club-success);
+  color: #fff;
+  border: none;
+  border-radius: 12px;
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: inherit;
+}
+
+.club-btn-success:hover {
+  background: #059669;
+}
+
+.club-switch-text {
+  text-align: center;
+  font-size: 14px;
+  color: var(--club-text-2);
+  margin-top: 20px;
+}
+
+.club-switch-link {
+  color: var(--club-orange);
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.club-switch-link:hover {
+  text-decoration: underline;
+}
+
+/* -------- Role toggle (Student / Leader) -------- */
+.club-role-toggle {
+  display: flex;
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 14px;
+  padding: 5px;
+  margin-bottom: 20px;
+}
+
+.club-role-btn {
+  flex: 1;
+  padding: 12px;
+  background: transparent;
+  border: none;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--club-text-2);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all 0.15s;
+  font-family: inherit;
+}
+
+.club-role-btn.active {
+  background: linear-gradient(135deg, var(--club-orange), var(--club-orange-dark));
+  color: #fff;
+  box-shadow: 0 2px 10px rgba(249, 115, 22, 0.3);
+}
+
+/* -------- University picker (4-only) -------- */
+.club-uni-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.club-uni-card {
+  background: #fff;
+  border: 1.5px solid var(--club-border);
+  border-radius: 14px;
+  padding: 14px;
+  cursor: pointer;
+  position: relative;
+  transition: all 0.15s;
+  text-align: left;
+  font-family: inherit;
+}
+
+.club-uni-card:hover {
+  border-color: var(--club-text-3);
+}
+
+.club-uni-card.selected {
+  background: var(--club-orange-light);
+}
+
+.club-uni-card-badge {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: rgba(15, 23, 42, 0.06);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+  color: var(--club-text);
+}
+
+.club-uni-card-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--club-text);
+  margin: 0 0 4px;
+  line-height: 1.4;
+}
+
+.club-uni-card-tagline {
+  font-size: 11px;
+  color: var(--club-text-3);
+  margin: 0;
+}
+
+.club-uni-card-check {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--club-success);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+/* -------- Status pill -------- */
+.club-status-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+}
+
+.club-status-pill.pending {
+  background: rgba(245, 158, 11, 0.12);
+  color: #92400e;
+}
+
+.club-status-pill.verified {
+  background: rgba(34, 197, 94, 0.12);
+  color: #15803d;
+}
+
+.club-status-pill.rejected {
+  background: rgba(239, 68, 68, 0.12);
+  color: #b91c1c;
+}
+
+/* -------- Dev helper bar -------- */
+.club-dev-helper {
+  background: rgba(59, 130, 246, 0.06);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  border-radius: 14px;
+  padding: 14px;
+  margin-bottom: 18px;
+}
+
+.club-dev-helper-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  font-size: 11px;
+  font-weight: 800;
+  color: #1d4ed8;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.club-dev-helper-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+.club-dev-helper-tile {
+  background: #fff;
+  border: 1px solid var(--club-border);
+  border-radius: 10px;
+  padding: 10px;
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.15s;
+}
+
+.club-dev-helper-tile:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--club-shadow-md);
+}
+
+.club-dev-helper-tile-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--club-text);
+  margin-bottom: 2px;
+}
+
+.club-dev-helper-tile-email {
+  font-size: 11px;
+  color: var(--club-text-2);
+  margin-bottom: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.club-dev-helper-tile-pass {
+  font-size: 11px;
+  color: var(--club-text-3);
+  font-weight: 600;
+}
+
+/* -------- Loading spinner -------- */
+.club-loading {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.club-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: club-spin 0.6s linear infinite;
+}
+
+@keyframes club-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ====================================================================
+   Phase 1 — Branch locator, branch detail, member directory,
+   patron card, status badges, ghost-danger button
+   ==================================================================== */
+
+/* -------- Public page shell (header + main) -------- */
+.club-public-page {
+  min-height: 100vh;
+  background: var(--club-bg);
+  font-family: 'Segoe UI', 'DM Sans', sans-serif;
+}
+
+.club-public-header {
+  background: var(--club-white);
+  border-bottom: 1px solid var(--club-border);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.club-public-header-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 18px 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.club-public-header-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.club-public-main {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 32px;
+}
+
+.club-public-hero {
+  margin-bottom: 28px;
+}
+
+.club-public-hero-title {
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--club-text);
+  margin: 0 0 8px;
+  line-height: 1.25;
+}
+
+.club-public-hero-sub {
+  font-size: 15px;
+  color: var(--club-text-2);
+  line-height: 1.6;
+  margin: 0 0 18px;
+  max-width: 760px;
+}
+
+.club-public-search {
+  max-width: 480px;
+}
+
+.club-empty {
+  padding: 24px 0;
+  text-align: center;
+  color: var(--club-text-3);
+  font-size: 14px;
+}
+
+.club-footnote {
+  margin-top: 14px;
+  padding: 12px 14px;
+  background: rgba(59, 130, 246, 0.06);
+  border: 1px solid rgba(59, 130, 246, 0.18);
+  border-radius: 10px;
+  font-size: 12px;
+  color: #1d4ed8;
+  line-height: 1.6;
+}
+
+/* -------- Branch card grid (IBARA YA 4) -------- */
+.club-branch-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 20px;
+}
+
+.club-branch-card {
+  background: var(--club-white);
+  border: 1px solid var(--club-border);
+  border-radius: 16px;
+  overflow: hidden;
+  transition: transform 0.15s, box-shadow 0.15s;
+  display: flex;
+  flex-direction: column;
+}
+
+.club-branch-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.08);
+}
+
+.club-branch-card-top {
+  padding: 18px 20px;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.club-branch-card-badge {
+  font-weight: 800;
+  font-size: 14px;
+  letter-spacing: 0.04em;
+  background: rgba(255, 255, 255, 0.18);
+  padding: 4px 10px;
+  border-radius: 999px;
+}
+
+.club-branch-card-status {
+  font-size: 12px;
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.18);
+  padding: 4px 10px;
+  border-radius: 999px;
+}
+
+.club-branch-card-body {
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+}
+
+.club-branch-card-name {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--club-text);
+  margin: 0;
+}
+
+.club-branch-card-uni {
+  font-size: 13px;
+  color: var(--club-text-2);
+  margin: 0;
+}
+
+.club-branch-card-tag {
+  font-size: 12px;
+  color: var(--club-text-3);
+  font-style: italic;
+  margin: 0 0 8px;
+}
+
+.club-branch-card-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin: 8px 0 16px;
+  padding: 12px;
+  background: var(--club-bg);
+  border-radius: 10px;
+}
+
+.club-branch-card-stats > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: center;
+}
+
+.club-branch-card-stats dt {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--club-text-3);
+  font-weight: 600;
+  margin: 0;
+}
+
+.club-branch-card-stats dd {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--club-text);
+  margin: 0;
+}
+
+/* -------- Branch detail hero -------- */
+.club-branch-hero {
+  position: relative;
+  border-radius: 18px;
+  overflow: hidden;
+  padding: 36px 32px;
+  color: #fff;
+  margin-bottom: 28px;
+}
+
+.club-branch-hero-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(0,0,0,0.15), rgba(0,0,0,0.4));
+  pointer-events: none;
+}
+
+.club-branch-hero-inner {
+  position: relative;
+  z-index: 1;
+}
+
+.club-branch-hero-badge {
+  display: inline-block;
+  padding: 4px 12px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  margin-bottom: 12px;
+}
+
+.club-branch-hero-title {
+  font-size: 32px;
+  font-weight: 800;
+  margin: 0 0 6px;
+}
+
+.club-branch-hero-tag {
+  font-size: 15px;
+  font-style: italic;
+  margin: 0 0 18px;
+  opacity: 0.92;
+}
+
+.club-branch-hero-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.club-branch-grid-2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+}
+
+@media (max-width: 880px) {
+  .club-branch-grid-2 { grid-template-columns: 1fr; }
+}
+
+/* -------- Patron card (IBARA YA 20) -------- */
+.club-patron-card {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  padding: 16px;
+  background: var(--club-bg);
+  border-radius: 14px;
+}
+
+.club-patron-card.is-compact {
+  padding: 12px;
+}
+
+.club-patron-avatar {
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  background: var(--club-orange);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+.club-patron-card.is-compact .club-patron-avatar {
+  width: 44px;
+  height: 44px;
+  font-size: 16px;
+}
+
+.club-patron-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.club-patron-name {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--club-text);
+  margin: 0;
+}
+
+.club-patron-role {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--club-orange-dark);
+  margin: 0 0 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.club-patron-meta {
+  font-size: 13px;
+  color: var(--club-text-2);
+  margin: 0;
+}
+
+/* -------- Category + status breakdowns -------- */
+.club-category-breakdown,
+.club-status-breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.club-category-row,
+.club-status-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  background: var(--club-bg);
+  border-radius: 8px;
+}
+
+.club-category-row-label,
+.club-status-row-label {
+  font-size: 13px;
+  color: var(--club-text);
+  font-weight: 500;
+}
+
+.club-category-row-value,
+.club-status-row-value {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--club-orange-dark);
+}
+
+/* -------- Member list rows -------- */
+.club-member-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.club-member-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 14px;
+  background: var(--club-bg);
+  border-radius: 12px;
+}
+
+.club-member-avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  background: var(--club-orange);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.club-member-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.club-member-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--club-text);
+  margin: 0;
+}
+
+.club-member-meta {
+  font-size: 12px;
+  color: var(--club-text-2);
+  margin: 0;
+}
+
+.club-member-bio {
+  font-size: 12px;
+  color: var(--club-text-3);
+  margin: 4px 0 0;
+  font-style: italic;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* -------- Status / category badges -------- */
+.club-badge {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #e5e7eb;
+  color: #374151;
+  white-space: nowrap;
+}
+
+.club-badge-active { background: #dcfce7; color: #15803d; }
+.club-badge-pending { background: #fef3c7; color: #b45309; }
+.club-badge-suspended { background: #fee2e2; color: #b91c1c; }
+.club-badge-expelled { background: #fee2e2; color: #7f1d1d; }
+.club-badge-withdrawn { background: #e0e7ff; color: #3730a3; }
+.club-badge-rejected { background: #f3f4f6; color: #6b7280; }
+.club-badge-soft {
+  background: rgba(249, 115, 22, 0.12);
+  color: var(--club-orange-dark);
+}
+
+/* -------- Directory filters -------- */
+.club-directory-filters {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.club-filter-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+@media (max-width: 640px) {
+  .club-filter-row { grid-template-columns: 1fr; }
+}
+
+.club-filter-label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--club-text-2);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.club-filter-label .club-form-input {
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+/* -------- Ghost-danger button (used in withdrawal) -------- */
+.club-btn-ghost-danger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 12px 20px;
+  background: transparent;
+  color: #b91c1c;
+  border: 1.5px solid #fecaca;
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.club-btn-ghost-danger:hover {
+  background: #fef2f2;
+  border-color: #fca5a5;
+}
+
+/* ====================================================================
+   Phase 2 — Executive Committee, Position Duties, Patron, Handover
+   ==================================================================== */
+
+/* -------- Executive Committee grid -------- */
+.club-exec-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 16px;
+  margin-top: 12px;
+}
+
+.club-exec-card {
+  background: var(--club-white);
+  border: 1px solid var(--club-border);
+  border-top: 4px solid var(--club-orange);
+  border-radius: 14px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.club-exec-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+}
+
+.club-exec-card-top {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.club-exec-card-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  flex-shrink: 0;
+  background: var(--club-orange);
+  color: #fff;
+}
+
+.club-exec-card-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--club-text);
+  margin: 0;
+}
+
+.club-exec-card-sub {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--club-text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 0;
+}
+
+.club-exec-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.club-exec-card-member {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 10px;
+  background: var(--club-bg);
+  border-radius: 10px;
+}
+
+.club-exec-card-meta {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+  margin: 0;
+}
+
+.club-exec-card-meta > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.club-exec-card-meta dt {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--club-text-3);
+  font-weight: 600;
+  margin: 0;
+}
+
+.club-exec-card-meta dd {
+  font-size: 13px;
+  color: var(--club-text);
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.club-exec-card-vacant {
+  padding: 14px;
+  background: #fff8f1;
+  border: 1px dashed #fed7aa;
+  border-radius: 10px;
+}
+
+.club-exec-card-vacant-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--club-orange-dark);
+  margin: 0 0 4px;
+}
+
+.club-exec-card-vacant-meta {
+  font-size: 12px;
+  color: var(--club-text-2);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.club-exec-card-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: auto;
+}
+
+.club-btn-sm {
+  width: auto !important;
+  padding: 9px 14px !important;
+  font-size: 13px !important;
+}
+
+/* -------- Position detail hero -------- */
+.club-position-hero {
+  position: relative;
+  border-radius: 18px;
+  padding: 32px;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+
+.club-position-hero-icon {
+  width: 80px;
+  height: 80px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 38px;
+  flex-shrink: 0;
+  backdrop-filter: blur(8px);
+}
+
+.club-position-hero-title {
+  font-size: 30px;
+  font-weight: 800;
+  margin: 0 0 4px;
+}
+
+.club-position-hero-sub {
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin: 0 0 10px;
+  opacity: 0.92;
+}
+
+.club-position-hero-summary {
+  font-size: 15px;
+  line-height: 1.6;
+  margin: 0;
+  max-width: 720px;
+  opacity: 0.95;
+}
+
+/* -------- Duty list -------- */
+.club-duty-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  counter-reset: duty;
+}
+
+.club-duty-list li {
+  position: relative;
+  padding: 12px 14px 12px 44px;
+  background: var(--club-bg);
+  border-radius: 10px;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--club-text);
+  counter-increment: duty;
+}
+
+.club-duty-list li::before {
+  content: counter(duty);
+  position: absolute;
+  left: 12px;
+  top: 12px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--club-orange);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* -------- Handover page -------- */
+.club-handover-current {
+  padding: 12px 14px;
+  background: #fff8f1;
+  border: 1px solid #fed7aa;
+  border-radius: 10px;
+  margin-bottom: 14px;
+}
+
+.club-handover-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 700;
+  color: var(--club-orange-dark);
+  margin: 0 0 4px;
+}
+
+.club-handover-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--club-text);
+  margin: 0;
+}
+
+.club-handover-meta {
+  font-size: 12px;
+  color: var(--club-text-2);
+  margin: 4px 0 0;
+}
+
+.club-asset-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.club-asset-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  background: var(--club-bg);
+  border-radius: 10px;
+  font-size: 13px;
+  color: var(--club-text);
+  cursor: pointer;
+}
+
+.club-asset-row input {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  accent-color: var(--club-orange);
+}
+
+.club-handover-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.club-handover-row {
+  padding: 14px;
+  background: var(--club-bg);
+  border-radius: 10px;
+}
+
+.club-handover-row-head {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.club-handover-row-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--club-text);
+  margin: 0;
+}
+
+.club-handover-row-meta {
+  font-size: 12px;
+  color: var(--club-text-3);
+  margin: 2px 0 0;
+}
+
+.club-handover-row-notes {
+  font-size: 13px;
+  color: var(--club-text-2);
+  line-height: 1.5;
+  margin: 8px 0 0;
+  padding-top: 8px;
+  border-top: 1px dashed var(--club-border);
+}
+
+/* ====================================================================
+   Phase 3 — Elections (IBARA YA 30–34)
+   ==================================================================== */
+
+/* -------- Election filter tabs -------- */
+.club-election-filters {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.club-election-filter {
+  padding: 9px 16px;
+  background: var(--club-white);
+  border: 1.5px solid var(--club-border);
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--club-text-2);
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.club-election-filter:hover {
+  border-color: var(--club-orange);
+  color: var(--club-orange-dark);
+}
+
+.club-election-filter.is-active {
+  background: var(--club-orange);
+  border-color: var(--club-orange);
+  color: #fff;
+}
+
+/* -------- Election rows (history list) -------- */
+.club-election-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.club-election-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px;
+  background: var(--club-bg);
+  border-radius: 12px;
+}
+
+.club-election-row-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: var(--club-orange);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+.club-election-row-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.club-election-row-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--club-text);
+  margin: 0 0 2px;
+}
+
+.club-election-row-meta {
+  font-size: 12px;
+  color: var(--club-text-3);
+  margin: 0;
+}
+
+/* -------- Ballot rows -------- */
+.club-ballot-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.club-ballot-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: var(--club-bg);
+  border: 1.5px solid transparent;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.club-ballot-row:hover {
+  border-color: var(--club-orange);
+}
+
+.club-ballot-row.is-selected {
+  border-color: var(--club-orange);
+  background: #fff8f1;
+}
+
+.club-ballot-row input[type='radio'] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--club-orange);
+  cursor: pointer;
+}
+
+.club-ballot-row-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.club-ballot-confirm {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  background: var(--club-bg);
+  border-radius: 10px;
+  font-size: 13px;
+  color: var(--club-text);
+  cursor: pointer;
+}
+
+.club-ballot-confirm input {
+  margin-top: 2px;
+  width: 18px;
+  height: 18px;
+  accent-color: var(--club-orange);
+  cursor: pointer;
+}
+
+/* -------- Campaign details (manifesto accordion) -------- */
+.club-campaign-details {
+  margin-top: 8px;
+}
+
+.club-campaign-details summary {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--club-orange-dark);
+  cursor: pointer;
+  padding: 4px 0;
+}
+
+.club-campaign-details-body {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: var(--club-text-2);
+  line-height: 1.5;
+  padding: 10px;
+  background: var(--club-bg);
+  border-radius: 8px;
+}
+
+/* -------- Stage controls -------- */
+.club-stage-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+/* -------- Results -------- */
+.club-results-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.club-results-row {
+  padding: 12px 14px;
+  background: var(--club-bg);
+  border-radius: 12px;
+}
+
+.club-results-row.is-winner {
+  background: linear-gradient(135deg, rgba(249, 115, 22, 0.06), rgba(234, 88, 12, 0.04));
+  border: 1px solid rgba(249, 115, 22, 0.3);
+}
+
+.club-results-row-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.club-results-row-rank {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--club-text-3);
+}
+
+.club-results-row-votes {
+  margin-left: auto;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--club-text);
+}
+
+.club-results-bar {
+  height: 8px;
+  background: var(--club-border);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.club-results-bar-fill {
+  height: 100%;
+  background: var(--club-orange);
+  border-radius: 999px;
+  transition: width 0.4s ease;
+}
+
+.club-results-meta {
+  font-size: 12px;
+  color: var(--club-text-3);
+  margin: 6px 0 0;
+  text-align: right;
+}
+
+/* -------- Complaints -------- */
+.club-complaint-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.club-complaint-row {
+  padding: 12px 14px;
+  background: var(--club-bg);
+  border-radius: 10px;
+  border-left: 3px solid #f59e0b;
+}
+
+.club-complaint-meta {
+  font-size: 11px;
+  color: var(--club-text-3);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 0 0 4px;
+}
+
+.club-complaint-text {
+  font-size: 13px;
+  color: var(--club-text);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.club-complaint-resolution {
+  font-size: 12px;
+  color: var(--club-text-2);
+  font-style: italic;
+  margin: 8px 0 0;
+  padding-top: 8px;
+  border-top: 1px dashed var(--club-border);
+}
+
+/* -------- Vote of no-confidence -------- */
+.club-vote-buttons {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.club-vote-btn {
+  padding: 16px;
+  border-radius: 12px;
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  font-family: inherit;
+  border: 1.5px solid;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.club-vote-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.club-vote-btn-for {
+  background: #fef2f2;
+  color: #b91c1c;
+  border-color: #fecaca;
+}
+
+.club-vote-btn-for:hover:not(:disabled) {
+  background: #fee2e2;
+  transform: translateY(-1px);
+}
+
+.club-vote-btn-against {
+  background: #f0fdf4;
+  color: #15803d;
+  border-color: #bbf7d0;
+}
+
+.club-vote-btn-against:hover:not(:disabled) {
+  background: #dcfce7;
+  transform: translateY(-1px);
+}
+
+/* ====================================================================
+   Phase 4 — Meetings (IBARA YA 35–37)
+   ==================================================================== */
+
+/* Meeting types overview */
+.club-meeting-types {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.club-meeting-type {
+  display: flex;
+  gap: 12px;
+  padding: 14px;
+  background: var(--club-bg);
+  border-left: 4px solid;
+  border-radius: 10px;
+  align-items: flex-start;
+}
+
+.club-meeting-type-icon {
+  font-size: 24px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.club-meeting-type-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--club-text);
+  margin: 0 0 2px;
+}
+
+.club-meeting-type-sub {
+  font-size: 11px;
+  color: var(--club-text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 0 0 4px;
+}
+
+.club-meeting-type-meta {
+  font-size: 12px;
+  color: var(--club-text-2);
+  margin: 0;
+}
+
+/* Meeting rows */
+.club-meeting-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.club-meeting-row {
+  background: var(--club-bg);
+  border-left: 4px solid;
+  border-radius: 10px;
+  padding: 14px;
+}
+
+.club-meeting-row-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.club-meeting-row-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.club-meeting-row-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--club-text);
+  margin: 0 0 2px;
+}
+
+.club-meeting-row-meta {
+  font-size: 12px;
+  color: var(--club-text-2);
+  margin: 0;
+}
+
+.club-meeting-row-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.club-meeting-row-quorum {
+  font-size: 12px;
+  color: var(--club-text-2);
+}
+
+/* Type picker on schedule page */
+.club-meeting-type-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 8px;
+}
+
+.club-meeting-type-pill {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  background: var(--club-white);
+  border: 1.5px solid;
+  border-radius: 10px;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.club-meeting-type-pill:hover {
+  background: var(--club-bg);
+}
+
+.club-meeting-type-pill.is-selected {
+  background: var(--club-bg);
+}
+
+.club-meeting-type-pill-icon {
+  font-size: 22px;
+}
+
+.club-meeting-type-pill strong {
+  display: block;
+  font-size: 13px;
+  color: var(--club-text);
+}
+
+.club-meeting-type-pill-meta {
+  display: block;
+  font-size: 11px;
+  color: var(--club-text-3);
+  margin-top: 2px;
+}
+
+/* Quorum meter */
+.club-quorum-meter {
+  margin-bottom: 14px;
+}
+
+.club-quorum-meter-track {
+  height: 12px;
+  background: var(--club-border);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.club-quorum-meter-fill {
+  height: 100%;
+  background: var(--club-orange);
+  border-radius: 999px;
+  transition: width 0.3s ease, background 0.3s ease;
+}
+
+.club-quorum-meter-label {
+  font-size: 13px;
+  color: var(--club-text);
+  margin: 6px 0 0;
+}
+
+.club-attendee-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 8px;
+}
+
+.club-attendee-chip {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 12px;
+  background: var(--club-white);
+  border-radius: 10px;
+}
+
+.club-attendee-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--club-orange);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.club-attendee-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--club-text);
+  margin: 0;
+}
+
+.club-attendee-meta {
+  font-size: 11px;
+  color: var(--club-text-3);
+  margin: 0;
+}
+
+/* Agenda display */
+.club-agenda {
+  font-family: inherit;
+  white-space: pre-wrap;
+  font-size: 14px;
+  line-height: 1.7;
+  background: var(--club-bg);
+  border-radius: 10px;
+  padding: 14px;
+  margin: 0;
+  color: var(--club-text);
+}
+
+/* Minutes editor + display */
+.club-minutes-list {
+  list-style: decimal;
+  padding-left: 22px;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.club-minutes-list > li {
+  background: var(--club-bg);
+  border-radius: 10px;
+  padding: 14px;
+}
+
+.club-minutes-row-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--club-text);
+}
+
+.club-minutes-row-text {
+  font-size: 13px;
+  color: var(--club-text-2);
+  line-height: 1.6;
+  margin: 8px 0 0;
+}
+
+.club-minutes-row-decision {
+  font-size: 13px;
+  color: var(--club-text);
+  background: rgba(34, 197, 94, 0.08);
+  border-left: 3px solid #22c55e;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin: 8px 0 0;
+}
+
+.club-minutes-row-meta {
+  font-size: 11px;
+  color: var(--club-text-3);
+  margin: 8px 0 0;
+}
+
+.club-minutes-editor-item {
+  background: var(--club-bg);
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.club-minutes-editor-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.club-minutes-editor-num {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--club-orange-dark);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* Decisions list (small summary on detail page) */
+.club-decision-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.club-decision-row {
+  padding: 12px 14px;
+  background: var(--club-bg);
+  border-radius: 10px;
+  border-left: 3px solid var(--club-orange);
+}
+
+.club-decision-row.is-passed { border-left-color: #22c55e; }
+.club-decision-row.is-failed { border-left-color: #ef4444; }
+
+.club-decision-row-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+.club-decision-row-text {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--club-text);
+  margin: 0;
+  flex: 1;
+}
+
+.club-decision-row-meta {
+  font-size: 12px;
+  color: var(--club-text-3);
+  margin: 6px 0 0;
+}
+
+/* Decisions (large cards on votes page) */
+.club-decision-card {
+  background: var(--club-white);
+  border: 1px solid var(--club-border);
+  border-left: 4px solid var(--club-orange);
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.club-decision-card.is-passed { border-left-color: #22c55e; }
+.club-decision-card.is-failed { border-left-color: #ef4444; }
+
+.club-decision-card-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.club-decision-card-text {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--club-text);
+  margin: 0;
+  flex: 1;
+}
+
+.club-decision-card-meta {
+  font-size: 11px;
+  color: var(--club-text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 0 0 12px;
+}
+
+.club-vote-results {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.club-vote-result-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  background: var(--club-bg);
+  border-radius: 8px;
+}
+
+.club-vote-result-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--club-text-3);
+  font-weight: 600;
+}
+
+.club-vote-result-value {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--club-text);
+}
+
+/* Threshold pills for propose-decision form */
+.club-threshold-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.club-threshold-pill {
+  padding: 9px 14px;
+  background: var(--club-white);
+  border: 1.5px solid var(--club-border);
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--club-text-2);
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.15s;
+}
+
+.club-threshold-pill:hover {
+  border-color: var(--club-orange);
+  color: var(--club-orange-dark);
+}
+
+.club-threshold-pill.is-selected {
+  background: var(--club-orange);
+  border-color: var(--club-orange);
+  color: #fff;
+}
+
+/* ====================================================================
+   Phase 5 — Treasury, Ethics, IP, Discipline
+   ==================================================================== */
+
+/* Treasury balance hero */
+.treasury-balance-hero {
+  background: linear-gradient(135deg, var(--club-orange), var(--club-orange-dark));
+  color: #fff;
+  border-radius: 16px;
+  padding: 28px 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  flex-wrap: wrap;
+  box-shadow: var(--club-shadow-orange);
+}
+
+.treasury-balance-label {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin: 0 0 4px;
+  opacity: 0.9;
+}
+
+.treasury-balance-amount {
+  font-size: 36px;
+  font-weight: 800;
+  margin: 0;
+  line-height: 1;
+}
+
+.treasury-balance-meta {
+  font-size: 13px;
+  margin: 8px 0 0;
+  opacity: 0.9;
+}
+
+.treasury-balance-breakdown {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  min-width: 280px;
+}
+
+.treasury-balance-cell {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 10px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  backdrop-filter: blur(8px);
+}
+
+.treasury-balance-cell-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0.9;
+}
+
+.treasury-balance-cell-amount {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.treasury-balance-cell-amount.is-income { color: #bbf7d0; }
+.treasury-balance-cell-amount.is-expense { color: #fecaca; }
+
+/* Quicklinks */
+.treasury-quicklinks {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 10px;
+  margin: 16px 0 24px;
+}
+
+.treasury-quicklink {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 16px;
+  background: var(--club-white);
+  border: 1px solid var(--club-border);
+  border-radius: 12px;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.treasury-quicklink:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+}
+
+.treasury-quicklink-icon {
+  font-size: 22px;
+}
+
+.treasury-quicklink-label {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--club-text);
+}
+
+.treasury-quicklink-meta {
+  font-size: 12px;
+  color: var(--club-text-3);
+}
+
+/* Wallet rows */
+.treasury-wallet-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px dashed var(--club-border);
+}
+
+.treasury-wallet-row:last-child { border-bottom: none; }
+
+.treasury-wallet-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: var(--club-bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.treasury-wallet-body { flex: 1; }
+
+.treasury-wallet-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--club-text);
+  margin: 0;
+}
+
+.treasury-wallet-meta {
+  font-size: 12px;
+  color: var(--club-text-3);
+  margin: 0;
+}
+
+/* Breakdown bars */
+.treasury-breakdown-row {
+  display: grid;
+  grid-template-columns: 24px 1fr auto;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px dashed var(--club-border);
+}
+
+.treasury-breakdown-row:last-child { border-bottom: none; }
+
+.treasury-breakdown-icon {
+  font-size: 18px;
+}
+
+.treasury-breakdown-label {
+  font-size: 13px;
+  color: var(--club-text);
+}
+
+.treasury-breakdown-amount {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--club-text);
+}
+
+.treasury-breakdown-bar {
+  grid-column: 1 / -1;
+  height: 6px;
+  background: var(--club-border);
+  border-radius: 999px;
+  overflow: hidden;
+  margin-left: 34px;
+  max-width: calc(100% - 34px);
+}
+
+.treasury-breakdown-fill {
+  height: 100%;
+  background: var(--club-orange);
+  border-radius: 999px;
+  transition: width 0.3s ease;
+}
+
+/* Transaction list */
+.treasury-tx-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.treasury-tx-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: var(--club-bg);
+  border-radius: 10px;
+  flex-wrap: wrap;
+}
+
+.treasury-tx-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: var(--club-white);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.treasury-tx-body { flex: 1; min-width: 0; }
+
+.treasury-tx-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--club-text);
+  margin: 0 0 2px;
+}
+
+.treasury-tx-meta {
+  font-size: 11px;
+  color: var(--club-text-3);
+  margin: 0;
+}
+
+.treasury-tx-amount {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--club-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.treasury-tx-amount.is-income { color: #15803d; }
+.treasury-tx-amount.is-expense { color: #b91c1c; }
+
+/* Budget planner grid */
+.treasury-budget-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+}
+
+.treasury-budget-row {
+  background: var(--club-bg);
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+
+.treasury-budget-row-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.treasury-budget-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--club-text);
+}
+
+.treasury-budget-amounts {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.treasury-budget-amounts .is-spent { color: var(--club-orange-dark); font-weight: 700; }
+.treasury-budget-amounts .is-alloc { color: var(--club-text-2); }
+
+/* IP registry */
+.ip-registry-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 14px;
+}
+
+.ip-registry-card {
+  background: var(--club-bg);
+  border-radius: 14px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ip-registry-card-head {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.ip-registry-icon {
+  font-size: 28px;
+  width: 50px;
+  height: 50px;
+  border-radius: 12px;
+  background: var(--club-white);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.ip-registry-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--club-text);
+  margin: 0;
+}
+
+.ip-registry-type {
+  font-size: 11px;
+  color: var(--club-text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 2px 0 0;
+}
+
+.ip-registry-desc {
+  font-size: 13px;
+  color: var(--club-text-2);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.ip-registry-meta {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+}
+
+.ip-registry-meta > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ip-registry-meta dt {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--club-text-3);
+  font-weight: 600;
+  margin: 0;
+}
+
+.ip-registry-meta dd {
+  font-size: 13px;
+  color: var(--club-text);
+  margin: 0;
+}
+
+/* Audit log */
+.audit-log {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.audit-log-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 8px 12px;
+  background: var(--club-bg);
+  border-radius: 8px;
+  font-size: 12px;
+}
+
+.audit-log-time {
+  font-family: monospace;
+  color: var(--club-text-3);
+  font-size: 11px;
+  min-width: 130px;
+}
+
+.audit-log-type {
+  font-weight: 700;
+  color: var(--club-orange-dark);
+  text-transform: capitalize;
+}
+
+.audit-log-meta {
+  color: var(--club-text-2);
+  font-style: italic;
+}
+
+.club-header-line {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+/* ====================================================================
+   Phase 6 — Constitution, Amendments, Dissolution, Onboarding
+   ==================================================================== */
+
+/* Language toggle (constitution viewer) */
+.constitution-lang-toggle {
+  display: inline-flex;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 999px;
+  padding: 4px;
+  border: 1px solid var(--club-border);
+  gap: 2px;
+}
+
+.lang-pill {
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  background: transparent;
+  color: var(--club-text-2);
+  cursor: pointer;
+  font-family: inherit;
+  border: none;
+}
+
+.lang-pill:hover { color: var(--club-orange-dark); }
+
+.lang-pill.is-active {
+  background: var(--club-orange);
+  color: #fff;
+}
+
+/* Constitution hero */
+.constitution-hero {
+  background: linear-gradient(135deg, var(--club-orange), var(--club-orange-dark));
+  color: #fff;
+  border-radius: 18px;
+  padding: 32px;
+  margin-bottom: 28px;
+  box-shadow: var(--club-shadow-orange);
+}
+
+.constitution-hero-title {
+  font-size: 28px;
+  font-weight: 800;
+  margin: 0 0 6px;
+}
+
+.constitution-hero-meta {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 0 0 12px;
+  opacity: 0.92;
+}
+
+.constitution-hero-summary {
+  font-size: 15px;
+  margin: 0;
+  max-width: 760px;
+  line-height: 1.6;
+  opacity: 0.95;
+}
+
+/* Constitution layout */
+.constitution-grid {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  gap: 20px;
+  align-items: start;
+}
+
+@media (max-width: 880px) {
+  .constitution-grid { grid-template-columns: 1fr; }
+}
+
+/* TOC */
+.constitution-toc {
+  position: sticky;
+  top: 100px;
+  background: var(--club-white);
+  border: 1px solid var(--club-border);
+  border-radius: 14px;
+  padding: 16px;
+}
+
+.constitution-toc-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 10px;
+}
+
+.constitution-toc-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  width: 100%;
+}
+
+.constitution-toc-row:hover {
+  background: var(--club-bg);
+  border-color: var(--club-border);
+}
+
+.constitution-toc-num {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--club-orange);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.constitution-toc-row strong {
+  display: block;
+  font-size: 13px;
+  color: var(--club-text);
+}
+
+.constitution-toc-range {
+  display: block;
+  font-size: 11px;
+  color: var(--club-text-3);
+}
+
+/* Sura + Ibara */
+.constitution-articles { display: flex; flex-direction: column; gap: 14px; }
+
+.constitution-sura {
+  background: var(--club-white);
+  border: 1px solid var(--club-border);
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.constitution-sura-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 18px 20px;
+  background: transparent;
+  cursor: pointer;
+  border: none;
+  text-align: left;
+  font-family: inherit;
+}
+
+.constitution-sura-header:hover { background: var(--club-bg); }
+
+.constitution-sura-num {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--club-orange-dark);
+  font-weight: 700;
+  margin: 0 0 2px;
+}
+
+.constitution-sura-title {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--club-text);
+  margin: 0;
+}
+
+.constitution-sura-meta {
+  font-size: 12px;
+  color: var(--club-text-3);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.constitution-ibara-list {
+  border-top: 1px solid var(--club-border);
+  padding: 6px 0;
+}
+
+.constitution-ibara {
+  border-bottom: 1px dashed var(--club-border);
+}
+
+.constitution-ibara:last-child { border-bottom: none; }
+
+.constitution-ibara-header {
+  display: flex;
+  gap: 12px;
+  padding: 12px 20px;
+  cursor: pointer;
+  width: 100%;
+  background: transparent;
+  border: none;
+  text-align: left;
+  font-family: inherit;
+  align-items: flex-start;
+}
+
+.constitution-ibara-header:hover { background: var(--club-bg); }
+
+.constitution-ibara-num {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--club-orange-dark);
+  background: rgba(249, 115, 22, 0.1);
+  padding: 3px 8px;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+.constitution-ibara-text {
+  font-size: 13px;
+  color: var(--club-text);
+  line-height: 1.6;
+}
+
+.constitution-ibara-detail {
+  padding: 0 20px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: var(--club-bg);
+}
+
+.constitution-ibara-bilingual {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--club-text);
+}
+
+.constitution-amendments {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--club-border);
+}
+
+.constitution-amendments-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--club-orange-dark);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 0 0 6px;
+}
+
+.constitution-amendment-row {
+  padding: 10px 12px;
+  background: var(--club-white);
+  border-radius: 8px;
+  margin-bottom: 6px;
+}
+
+.constitution-amendment-text {
+  font-size: 13px;
+  color: var(--club-text);
+  font-style: italic;
+  margin: 6px 0 4px;
+}
+
+.constitution-amendment-meta {
+  font-size: 11px;
+  color: var(--club-text-3);
+  margin: 0;
+}
+
+.constitution-amendments-list {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Amendment diff + propose preview */
+.amendment-diff,
+.amendment-current-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  background: var(--club-bg);
+  border-radius: 12px;
+}
+
+.amendment-diff-pane {
+  background: var(--club-white);
+  border-radius: 10px;
+  padding: 12px 14px;
+  border-left: 3px solid #94a3b8;
+}
+
+.amendment-diff-pane.is-current { border-left-color: #ef4444; }
+.amendment-diff-pane.is-proposed { border-left-color: #22c55e; }
+
+.amendment-diff-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 700;
+  color: var(--club-text-3);
+  margin: 0 0 6px;
+}
+
+.amendment-diff-text {
+  margin: 0;
+  font-size: 13px;
+  color: var(--club-text);
+  line-height: 1.6;
+}
+
+.amendment-diff-arrow {
+  text-align: center;
+  font-size: 18px;
+  color: var(--club-orange-dark);
+  font-weight: 700;
+}
+
+/* Amendment result bar */
+.amendment-bar {
+  position: relative;
+  height: 12px;
+  background: var(--club-border);
+  border-radius: 999px;
+  overflow: hidden;
+  margin: 12px 0 6px;
+}
+
+.amendment-bar-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  border-radius: 999px;
+  transition: width 0.4s ease;
+}
+
+.amendment-bar-mark {
+  position: absolute;
+  top: -4px;
+  bottom: -4px;
+  width: 2px;
+  background: var(--club-text-3);
+  z-index: 2;
+}
+
+.amendment-threshold-label {
+  font-size: 11px;
+  color: var(--club-text-3);
+  text-align: right;
+  margin: 0;
+}
+
+/* Dissolution */
+.onboarding-resume-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.onboarding-resume-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 14px;
+  background: var(--club-bg);
+  border-radius: 10px;
+}
+
+.onboarding-resume-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--club-text);
+  margin: 0;
+}
+
+.onboarding-resume-meta {
+  font-size: 12px;
+  color: var(--club-text-3);
+  margin: 2px 0 0;
+}
+
+/* Onboarding wizard */
+.onboarding-wizard {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.onboarding-progress {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow-x: auto;
+}
+
+.onboarding-progress-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  flex: 1 1 0;
+  min-width: 80px;
+  text-align: center;
+}
+
+.onboarding-progress-num {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--club-border);
+  color: var(--club-text-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 14px;
+  position: relative;
+}
+
+.onboarding-progress-step.is-active .onboarding-progress-num {
+  background: var(--club-orange);
+  color: #fff;
+}
+
+.onboarding-progress-step.is-done .onboarding-progress-num {
+  background: #22c55e;
+  color: #fff;
+}
+
+.onboarding-progress-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--club-text-2);
+}
+
+.onboarding-progress-step.is-active .onboarding-progress-label {
+  color: var(--club-orange-dark);
+}
+
+.onboarding-step-card {
+  border: 2px solid rgba(249, 115, 22, 0.2);
+}
+
+.onboarding-step-actions {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 18px;
+}
+
+.onboarding-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--club-bg);
+  padding: 14px 18px;
+  border-radius: 12px;
+}
+
+.onboarding-summary-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  color: var(--club-text-2);
+  margin: 0;
+}
+
+.onboarding-summary-row strong {
+  color: var(--club-text);
+}
+
+/* Landing page additions */
+.club-landing-quickstats {
+  background: var(--club-white);
+  border-top: 1px solid var(--club-border);
+  border-bottom: 1px solid var(--club-border);
+}
+
+.club-landing-quickstats-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px 32px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 16px;
+}
+
+.club-landing-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  text-align: center;
+}
+
+.club-landing-stat-value {
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--club-orange-dark);
+}
+
+.club-landing-stat-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--club-text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.club-landing-constitution {
+  background: var(--club-white);
+  padding: 60px 32px;
+}
+
+.club-landing-constitution-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  align-items: center;
+  text-align: center;
+}
+
+.club-landing-constitution-inner h2 {
+  font-size: 26px;
+  font-weight: 800;
+  margin: 0;
+}
+
+.club-landing-constitution-inner p {
+  font-size: 15px;
+  color: var(--club-text-2);
+  max-width: 720px;
+  margin: 0;
+  line-height: 1.6;
+}
+
+.club-landing-constitution .club-landing-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.club-landing-uni-chip-link {
+  display: inline-block;
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--club-orange-dark);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.club-landing-uni-chip-status {
+  font-size: 11px;
+  color: var(--club-text-3);
+  margin: 4px 0 0;
+}

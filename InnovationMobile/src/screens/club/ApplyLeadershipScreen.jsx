@@ -15,6 +15,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { colors } from '../../styles/colors';
 import { useApp } from '../../context/AppContext';
+import Sidebar from '../../components/Sidebar';
 
 // ApplyLeadershipScreen
 // ---------------------
@@ -38,6 +39,8 @@ export default function ApplyLeadershipScreen({ navigation, route }) {
   const [hoursPerWeek, setHoursPerWeek] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [activeScreen, setActiveScreen] = useState('applyLeadership');
 
   const selected = openPositions.find((p) => p.id === positionId);
 
@@ -79,6 +82,15 @@ export default function ApplyLeadershipScreen({ navigation, route }) {
 
   return (
     <SafeAreaView style={styles.container}>
+      {sidebarOpen && (
+        <Sidebar
+          activeScreen={activeScreen}
+          onNavigate={setActiveScreen}
+          onClose={() => setSidebarOpen(false)}
+          navigation={navigation}
+          userType="clubMember"
+        />
+      )}
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={{ flex: 1 }}
@@ -90,6 +102,13 @@ export default function ApplyLeadershipScreen({ navigation, route }) {
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
             <Text style={styles.backIcon}>‹</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.menuBtn}
+            onPress={() => setSidebarOpen(true)}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Text style={styles.menuIcon}>☰</Text>
           </TouchableOpacity>
           <View style={styles.topBarCenter}>
             <Text style={styles.pageTitle}>Apply for Leadership</Text>
@@ -258,6 +277,13 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: colors.border, backgroundColor: colors.white,
   },
   backIcon: { fontSize: 24, color: colors.textSecondary, marginTop: -2 },
+  menuBtn: {
+    width: 40, height: 40, borderRadius: 8,
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderColor: colors.border, backgroundColor: colors.white,
+    marginLeft: 8,
+  },
+  menuIcon: { fontSize: 20, color: colors.textSecondary },
   topBarCenter: { flex: 1 },
   pageTitle: { fontSize: 18, fontWeight: '700', color: colors.textPrimary },
   topBarRight: { width: 40 },
