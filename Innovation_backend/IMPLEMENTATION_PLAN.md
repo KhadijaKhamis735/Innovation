@@ -312,34 +312,113 @@ Each phase ends in a fully testable state. We pause after each for your review b
 - [x] `src/pages/RegisterPage.jsx` — same, plus forwards password to backend (was previously ignored)
 
 **Verify (end-to-end from React UI):**
-- [ ] Login as `admin@innovation.local / Admin123!` → lands on `/admin/dashboard`
-- [ ] DevTools → Application → Local Storage shows `"token": "eyJ..."`
-- [ ] Refresh page → still logged in (session restored via `/api/auth/me`)
-- [ ] Register a new innovator via Register form → lands on `/dashboard/innovator`
-- [ ] Bad password shows backend error: `"Invalid email or password"`
+- [x] Login as `admin@innovation.local / Admin123!` → lands on `/admin/dashboard`
+- [x] DevTools → Application → Local Storage shows `"token": "eyJ..."`
+- [x] Refresh page → still logged in (session restored via `/api/auth/me`)
+- [x] Register a new innovator via Register form → lands on `/dashboard/innovator`
+- [x] Bad password shows backend error: `"Invalid email or password"`
 
-### 🔵 Phase 3 — Innovation CRUD (opportunities, applications, projects, organizations) (NEXT)
+### 🔵 Phase 3 — Innovation CRUD (role-by-role, dependency-ordered)
+
+> **Why split into 3A → 3B → 3C?** The three roles are interdependent: ADMIN must approve a FUNDER's organization before the funder can post, and an INNOVATOR can only apply once a FUNDER has posted. Doing all of Phase 3 in one shot leaves no clean point to test each role in isolation. The sub-phases below follow the dependency graph so each one ends in a testable state for a specific role.
+>
+> **Locked decisions for Phase 3:**
+> - **Funder gating:** a funder can only `POST /api/opportunities` if they have at least one `Organization` with status `APPROVED`. Otherwise backend returns `403 FORBIDDEN`. Matches the current frontend mock.
+> - **Milestone storage:** separate `milestones` table with FK to `innovator_projects` (not a JSONB column). Each milestone is its own row with `name`, `completed`, `completed_date`, `position`. Cleaner for queries/reporting.
+
+#### 🟦 Phase 3A — Innovator Projects + Admin ZSA approval (DONE ✅)
 **Backend:**
-- [ ] `opportunity/` package: `Opportunity` entity, type/status enums, repository, service, controller
-- [ ] `application/` package: `Application` entity, `stage` enum, controller
-- [ ] `project/` package: `InnovatorProject` entity, `phase` enum, controller
-- [ ] `organization/` package: `Organization` entity, status enum, controller
-- [ ] Endpoints: see §4.3–4.5
-- [ ] Role-based authorization + owner-checks
+- [x] `project/` package: `InnovatorProject` entity, `ProjectPhase` enum, repo, service, controller
+- [x] `project/Milestone` entity + repository (separate table, FK to project)
+- [x] `project/ProjectApprovalStatus` enum + `ZsaIdGenerator` (auto ZSA-INV-{YEAR}-{seq})
+- [x] `AdminProjectController` + `AdminProjectService` (approve/reject/override)
+- [x] Query-param converters: `ProjectApprovalStatusConverter`, `ProjectPhaseConverter` (so `?status=pending` works)
+- [x] Endpoints:
+  - `GET    /api/projects/me                       (innovator)`
+  - `POST   /api/projects                          (innovator)` — creates project PENDING, no zsaId
+  - `PUT    /api/projects/{id}                     (innovator, owner)` — preserves zsaId + approvalStatus
+  - `DELETE /api/projects/{id}                     (innovator, owner)`
+  - `PATCH  /api/projects/{id}/phase?phase=proposal (innovator, owner)`
+  - `POST   /api/projects/{id}/milestones          (innovator, owner)`
+  - `PATCH  /api/projects/{id}/milestones/{mid}    (innovator, owner)`
+  - `DELETE /api/projects/{id}/milestones/{mid}    (innovator, owner)`
+  - `GET    /api/admin/projects?status=pending     (admin)`
+  - `PATCH  /api/admin/projects/{id}/approve       (admin)` — auto-assigns ZSA ID
+  - `PATCH  /api/admin/projects/{id}/reject        (admin)`
+  - `PATCH  /api/admin/projects/{id}/zsa-id        (admin)` — override the assigned ID
+- [x] Owner-check on every mutation (404, not 403, to avoid leaking project existence)
+- [x] Fixed: `@AuthenticationPrincipal` NPE by reading principal via `SecurityContextHolder`
+- [x] Fixed: enum @RequestParam mismatch by registering `Converter` beans
 
-**Frontend patches (planned):**
-- [ ] `opportunity/PublicOpportunities.jsx`: fetch from `GET /api/opportunities` instead of mock list
-- [ ] `opportunity/PublicOpportunityDetail.jsx`: `applyToOpportunity` POSTs to `/api/opportunities/:id/apply`
-- [ ] `funder/PostOpportunity.jsx`: posts to `POST /api/opportunities`
-- [ ] `funder/ReceivedApplications.jsx`: fetches `GET /api/opportunities/:id/applicants`
-- [ ] `innovator/MyProjects.jsx`: CRUD against `/api/projects/*`
-- [ ] `admin/AdminOpportunities.jsx`, `AdminUsers.jsx`, `AdminOrganizations.jsx`: CRUD against `/api/admin/*`
+**Frontend patch (backend only, no mock fallback):**
+- [ ] `src/pages/innovator/MyProjects.jsx` → CRUD against `/api/projects/*` (NEXT)
+- [ ] `src/pages/admin/AdminProjects.jsx` (NEW) → list pending, approve/reject/override (NEXT)
+- [ ] Empty state + error banner when backend is unreachable (NO mock fallback)
+
+**Verify (end-to-end, all passed ✅):**
+- [x] Innovator creates project → 201 with zsaId=null, approvalStatus=pending
+- [x] Admin sees the project at /api/admin/projects?status=pending
+- [x] Admin approves → project gets ZSA-INV-2026-001, status=approved
+- [x] Innovator refresh → sees the new ZSA ID
+- [x] Admin tries to approve again → 400 "Project is already approved"
+- [x] Admin overrides ZSA ID → 200 with new value
+- [x] Innovator advances phase → 200
+- [x] Innovator toggles milestone → 200 with completedDate set
+- [x] Innovator deletes milestone → 204
+- [x] Second innovator GETs first innovator's project → 404
+
+#### 🟦 Phase 3B — Opportunities + Organizations (after 3A verified)
+**Backend:**
+- [ ] `opportunity/` package: `Opportunity` entity, `OpportunityType` + `OpportunityStatus` enums, repo, service, controller
+- [ ] `organization/` package: `Organization` entity, `OrganizationStatus` enum, repo, service, controller
+- [ ] Endpoints (public reads + funder writes + admin moderation):
+  - `GET    /api/opportunities                              (public) ?status=&search=&type=`
+  - `GET    /api/opportunities/{id}                         (public)`
+  - `POST   /api/opportunities                              (funder)` — **requires at least one APPROVED Organization; else 403**
+  - `PUT    /api/opportunities/{id}                         (funder, owner)`
+  - `DELETE /api/opportunities/{id}                         (funder, owner | admin)`
+  - `GET    /api/admin/opportunities                        (admin)`
+  - `GET    /api/admin/organizations                        (admin)`
+  - `PATCH  /api/admin/organizations/{id}/status  { status } (admin)`
+- [ ] On funder register: auto-create a `PENDING` Organization row (so admins always have something to approve)
+- [ ] On admin approve: funder gains posting ability immediately
+
+**Frontend patch:**
+- [ ] `src/pages/opportunity/PublicOpportunities.jsx` → fetch `GET /api/opportunities`
+- [ ] `src/pages/opportunity/PublicOpportunityDetail.jsx` → render real opportunity
+- [ ] `src/pages/funder/PostOpportunity.jsx` → POST + handle 403 ("organization not approved")
+- [ ] `src/pages/funder/MyPostedOpportunities.jsx` → funder's own list (PUT/DELETE)
+- [ ] `src/pages/admin/AdminOrganizations.jsx` → list + approve/reject
+- [ ] `src/pages/admin/AdminOpportunities.jsx` → admin view
 
 **Verify (end-to-end):**
-- [ ] Funder posts an opportunity → innovator sees it on `/opportunities`
-- [ ] Innovator applies → funder sees the application on their dashboard
-- [ ] Admin approves a funder organization → funder can now post
-- [ ] Innovator creates a project → admin sees it in stats
+- [ ] Register a new funder → admin sees a new PENDING organization → admin approves it
+- [ ] Funder (now approved) posts an opportunity → public list shows it
+- [ ] Innovator sees the new opportunity on `/opportunities`
+- [ ] Funder who is NOT approved tries to POST → gets `403`
+- [ ] Admin can DELETE any opportunity
+
+#### 🟦 Phase 3C — Applications (after 3B verified)
+**Backend:**
+- [ ] `application/` package: `Application` entity, `ApplicationStage` enum, repo, service, controller
+- [ ] Endpoints:
+  - `POST   /api/opportunities/{id}/apply            (innovator)  { ideaTitle, problemStatement, proposedSolution, estimatedBudget }`
+  - `GET    /api/applications/me                      (innovator)`
+  - `GET    /api/opportunities/{id}/applicants       (funder, owner | admin)`
+  - `PATCH  /api/applications/{id}/stage              (funder, opportunity-owner | admin)  { stage }`
+- [ ] Innovator can apply once per opportunity (unique constraint on `opportunity_id + innovator_id`)
+- [ ] Stage moves are **flexible** in 3C (funder can move to any stage). Tighten to linear in a later hardening phase if needed.
+
+**Frontend patch:**
+- [ ] `src/pages/opportunity/PublicOpportunityDetail.jsx` → wire Apply button to `POST /api/opportunities/:id/apply`
+- [ ] `src/pages/innovator/MyApplication.jsx` → fetch from `GET /api/applications/me`
+- [ ] `src/pages/funder/ReceivedApplications.jsx` → fetch `GET /api/opportunities/:id/applicants` + `PATCH /api/applications/:id/stage`
+
+**Verify (end-to-end):**
+- [ ] Innovator applies to funder's opportunity → funder sees the application
+- [ ] Funder moves stage `SUBMITTED → UNDER_REVIEW → ACCEPTED` → innovator sees updated stage
+- [ ] Innovator tries to apply to the same opportunity twice → backend rejects
+- [ ] Different funder cannot view applicants for an opportunity they don't own
 
 ### 🟣 Phase 4 — Club auth & core (members, leaders, branches)
 **Backend:**
@@ -392,7 +471,7 @@ Elections, meetings, treasury, IP, discipline, amendments, dissolutions, onboard
 
 ## 8. Next Step
 
-**Proceed to Phase 3: Innovation CRUD (opportunities, applications, projects, organizations).** Stop and ask before Phase 4.
+**Proceed to Phase 3A: Innovator Projects (independent, safe starting point).** Stop and confirm after 3A before starting 3B.
 
 ---
 
