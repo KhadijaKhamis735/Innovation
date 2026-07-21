@@ -56,8 +56,11 @@ public class SecurityConfig {
                         .requestMatchers("/api/club/auth/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/opportunities").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/opportunities/*").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/club/branches").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/club/branches/**").permitAll()
+                        // Club branch list + detail + branch project feed are now
+                        // authenticated; the controllers carry @PreAuthorize, and the
+                        // services scope results by the caller's university.
+                        // (Earlier this block permitted GETs publicly; that was a
+                        // privacy leak — Phase 5A follow-up.)
 
                         // Static assets and error endpoints (Spring Boot default)
                         .requestMatchers("/error").permitAll()

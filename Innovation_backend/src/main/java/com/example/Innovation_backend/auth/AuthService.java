@@ -1,6 +1,8 @@
 package com.example.Innovation_backend.auth;
 
+import com.example.Innovation_backend.organization.OrganizationService;
 import com.example.Innovation_backend.security.JwtService;
+import com.example.Innovation_backend.user.Role;
 import com.example.Innovation_backend.user.User;
 import com.example.Innovation_backend.user.UserRepository;
 import com.example.Innovation_backend.user.UserService;
@@ -21,11 +23,22 @@ public class AuthService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
+    private final OrganizationService organizationService;
 
     @Transactional
     public AuthResponse register(RegisterRequest req) {
         UserResponse created = userService.register(req);
-        // Re-fetch to get assigned id; in this case UserResponse already has it.
+
+        // If the new account is a funder, auto-create a PENDING Organization
+        // so admins always have something to approve. The funder cannot post
+        // opportunities until admin flips status to APPROVED.
+        if (created.role() == Role.FUNDER) {
+            User funder = userRepository.findByEmail(created.email())
+                    .orElseThrow(() -> new IllegalStateException(
+                            "Just-created funder not found: " + created.email()));
+            organizationService.createPendingForFunder(funder);
+        }
+
         return new AuthResponse(
                 jwtService.issue(created.email(), created.id(), created.role().json()),
                 created

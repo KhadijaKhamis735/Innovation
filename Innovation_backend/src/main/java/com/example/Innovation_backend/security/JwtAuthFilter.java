@@ -60,8 +60,12 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             if (email != null && role != null
                     && SecurityContextHolder.getContext().getAuthentication() == null) {
 
-                // Spring role convention: prefix with "ROLE_"
-                var authority = new SimpleGrantedAuthority("ROLE_" + role.toUpperCase());
+                // Spring role convention: prefix with "ROLE_", uppercase, underscores
+                // (not hyphens). The frontend contract uses lowercase-with-hyphens
+                // ("club-leader"), but Spring's @PreAuthorize("hasRole('CLUB_LEADER')")
+                // matches against the authority we set here.
+                String springRole = role.toUpperCase().replace('-', '_');
+                var authority = new SimpleGrantedAuthority("ROLE_" + springRole);
 
                 var auth = new UsernamePasswordAuthenticationToken(
                         email,                  // principal (we'll use email until Phase 2 loads the User)

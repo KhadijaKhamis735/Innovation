@@ -351,9 +351,9 @@ Each phase ends in a fully testable state. We pause after each for your review b
 - [x] Fixed: enum @RequestParam mismatch by registering `Converter` beans
 
 **Frontend patch (backend only, no mock fallback):**
-- [ ] `src/pages/innovator/MyProjects.jsx` → CRUD against `/api/projects/*` (NEXT)
-- [ ] `src/pages/admin/AdminProjects.jsx` (NEW) → list pending, approve/reject/override (NEXT)
-- [ ] Empty state + error banner when backend is unreachable (NO mock fallback)
+- [x] `src/pages/MyProjects.jsx` → CRUD against `/api/projects/*`
+- [x] `src/pages/AdminProjects.jsx` (NEW) → list pending, approve/reject/override
+- [x] Empty state + error banner when backend is unreachable (NO mock fallback)
 
 **Verify (end-to-end, all passed ✅):**
 - [x] Innovator creates project → 201 with zsaId=null, approvalStatus=pending
@@ -367,83 +367,122 @@ Each phase ends in a fully testable state. We pause after each for your review b
 - [x] Innovator deletes milestone → 204
 - [x] Second innovator GETs first innovator's project → 404
 
-#### 🟦 Phase 3B — Opportunities + Organizations (after 3A verified)
+#### 🟦 Phase 3B — Opportunities + Organizations (DONE ✅)
 **Backend:**
-- [ ] `opportunity/` package: `Opportunity` entity, `OpportunityType` + `OpportunityStatus` enums, repo, service, controller
-- [ ] `organization/` package: `Organization` entity, `OrganizationStatus` enum, repo, service, controller
-- [ ] Endpoints (public reads + funder writes + admin moderation):
+- [x] `opportunity/` package: `Opportunity` entity, `OpportunityType` + `OpportunityStatus` enums, repo, service, controller
+- [x] `organization/` package: `Organization` entity, `OrganizationStatus` enum, repo, service, controller
+- [x] Endpoints (public reads + funder writes + admin moderation):
   - `GET    /api/opportunities                              (public) ?status=&search=&type=`
   - `GET    /api/opportunities/{id}                         (public)`
   - `POST   /api/opportunities                              (funder)` — **requires at least one APPROVED Organization; else 403**
   - `PUT    /api/opportunities/{id}                         (funder, owner)`
   - `DELETE /api/opportunities/{id}                         (funder, owner | admin)`
-  - `GET    /api/admin/opportunities                        (admin)`
   - `GET    /api/admin/organizations                        (admin)`
   - `PATCH  /api/admin/organizations/{id}/status  { status } (admin)`
-- [ ] On funder register: auto-create a `PENDING` Organization row (so admins always have something to approve)
-- [ ] On admin approve: funder gains posting ability immediately
+  - `GET    /api/admin/organizations/diagnostic             (admin)` — DB debug
+  - `GET    /api/admin/organizations/diagnostic/counts      (admin)` — DB debug
+- [x] On funder register: auto-create a `PENDING` Organization row (so admins always have something to approve)
+- [x] On admin approve: funder gains posting ability immediately
+- [x] Top-level `@Component` enum converters (`OpportunityTypeConverter`, `OpportunityStatusConverter`, `OrganizationStatusConverter`) so `?status=open&type=grant` is case-insensitive
+- [x] Per-method `@PreAuthorize` + `SecurityContextHolder` (no `@AuthenticationPrincipal` NPE)
 
 **Frontend patch:**
-- [ ] `src/pages/opportunity/PublicOpportunities.jsx` → fetch `GET /api/opportunities`
-- [ ] `src/pages/opportunity/PublicOpportunityDetail.jsx` → render real opportunity
-- [ ] `src/pages/funder/PostOpportunity.jsx` → POST + handle 403 ("organization not approved")
-- [ ] `src/pages/funder/MyPostedOpportunities.jsx` → funder's own list (PUT/DELETE)
-- [ ] `src/pages/admin/AdminOrganizations.jsx` → list + approve/reject
-- [ ] `src/pages/admin/AdminOpportunities.jsx` → admin view
+- [x] `src/pages/PublicOpportunities.jsx` → fetch `GET /api/opportunities` (filter by type, search by title)
+- [x] `src/pages/PublicOpportunityDetail.jsx` → render real opportunity + Apply button
+- [x] `src/pages/PostOpportunity.jsx` → POST + handle 403 ("organization not approved")
+- [x] `src/pages/AdminOrganizations.jsx` → list + approve/reject (no mock data)
+- [x] `src/api/client.js` — extended with `params` support for query strings
 
-**Verify (end-to-end):**
-- [ ] Register a new funder → admin sees a new PENDING organization → admin approves it
-- [ ] Funder (now approved) posts an opportunity → public list shows it
-- [ ] Innovator sees the new opportunity on `/opportunities`
-- [ ] Funder who is NOT approved tries to POST → gets `403`
-- [ ] Admin can DELETE any opportunity
+**Verify (end-to-end, all passed ✅):**
+- [x] Register a new funder → admin sees a new PENDING organization via diagnostic endpoint
+- [x] Admin approves org via `PATCH /api/admin/organizations/{id}/status` → status flips to APPROVED
+- [x] Funder (now approved) posts an opportunity via frontend → public list shows it
+- [x] Innovator sees the new opportunity on `/opportunities`
+- [x] Funder whose org is PENDING tries to POST → gets `403 "Your organization is not approved yet"` (proven via Thunder + frontend toast)
 
-#### 🟦 Phase 3C — Applications (after 3B verified)
+#### 🟦 Phase 3C — Applications (after 3B verified) — DONE ✅
 **Backend:**
-- [ ] `application/` package: `Application` entity, `ApplicationStage` enum, repo, service, controller
-- [ ] Endpoints:
-  - `POST   /api/opportunities/{id}/apply            (innovator)  { ideaTitle, problemStatement, proposedSolution, estimatedBudget }`
-  - `GET    /api/applications/me                      (innovator)`
-  - `GET    /api/opportunities/{id}/applicants       (funder, owner | admin)`
-  - `PATCH  /api/applications/{id}/stage              (funder, opportunity-owner | admin)  { stage }`
-- [ ] Innovator can apply once per opportunity (unique constraint on `opportunity_id + innovator_id`)
-- [ ] Stage moves are **flexible** in 3C (funder can move to any stage). Tighten to linear in a later hardening phase if needed.
+- [x] `application/` package: `Application` entity, `ApplicationStage` enum, repo, service, controller
+- [x] Endpoints:
+  - [x] `POST   /api/opportunities/{id}/apply            (innovator)  { ideaTitle, problemStatement, proposedSolution, estimatedBudget }`
+  - [x] `GET    /api/applications/me                      (innovator)`
+  - [x] `GET    /api/opportunities/{id}/applicants       (funder, owner | admin)`
+  - [x] `PATCH  /api/applications/{id}/stage              (funder, opportunity-owner | admin)  { stage }`
+- [x] Innovator can apply once per opportunity (unique constraint on `opportunity_id + innovator_id`) — `uk_app_opportunity_innovator`
+- [x] Stage moves are **flexible** in 3C (funder can move to any stage). Tighten to linear in a later hardening phase if needed.
 
 **Frontend patch:**
-- [ ] `src/pages/opportunity/PublicOpportunityDetail.jsx` → wire Apply button to `POST /api/opportunities/:id/apply`
-- [ ] `src/pages/innovator/MyApplication.jsx` → fetch from `GET /api/applications/me`
-- [ ] `src/pages/funder/ReceivedApplications.jsx` → fetch `GET /api/opportunities/:id/applicants` + `PATCH /api/applications/:id/stage`
+- [x] `src/pages/PublicOpportunityDetail.jsx` → wire Apply button to `POST /api/opportunities/:id/apply`
+- [x] `src/pages/MyApplication.jsx` → fetch from `GET /api/applications/me`
+- [x] `src/pages/ReceivedApplications.jsx` → fetch `GET /api/opportunities/:id/applicants` + `PATCH /api/applications/:id/stage`
+- [x] `src/pages/BrowseOpportunities.jsx` → wire its own Apply modal (was a stub) and surface "✓ Applied" badges
 
 **Verify (end-to-end):**
-- [ ] Innovator applies to funder's opportunity → funder sees the application
-- [ ] Funder moves stage `SUBMITTED → UNDER_REVIEW → ACCEPTED` → innovator sees updated stage
-- [ ] Innovator tries to apply to the same opportunity twice → backend rejects
-- [ ] Different funder cannot view applicants for an opportunity they don't own
+- [x] Innovator applies to funder's opportunity → funder sees the application
+- [x] Funder moves stage `SUBMITTED → UNDER_REVIEW → ACCEPTED` → innovator sees updated stage
+- [x] Innovator tries to apply to the same opportunity twice → backend rejects (409)
+- [x] Different funder cannot view applicants for an opportunity they don't own (403)
 
-### 🟣 Phase 4 — Club auth & core (members, leaders, branches)
+### 🟣 Phase 4 — Club auth & core (members, leaders, branches) ✅ COMPLETE
 **Backend:**
-- [ ] `club/` package: `University`, `Club` (Branch), `ClubMember`, `ClubLeader` entities
-- [ ] `club/ClubRole` enum (`CLUB_MEMBER`/`CLUB_LEADER`)
-- [ ] `University` seeded with the 4 hard-coded rows (SUZA, ZU, SUMAIT, KIST)
-- [ ] `POST /api/club/auth/register` — 4 categories (student/staff/alumni/corporate)
-- [ ] `POST /api/club/auth/login` → `{ token, role, kind }`
-- [ ] `GET /api/club/branches`, `/api/club/branches/:id`, `/api/club/branches/:id/members`
-- [ ] Leader approve/reject endpoints
+- [x] `club/` package: `University`, `Club` (Branch), `ClubMember`, `ClubLeader` entities
+- [x] `club/ClubRole` enum (`CLUB_MEMBER`/`CLUB_LEADER`)
+- [x] `University` seeded with the 4 hard-coded rows (SUZA, ZU, SUMAIT, KIST)
+- [x] `POST /api/club/auth/register` — 4 categories (student/staff/alumni/corporate)
+- [x] `POST /api/club/auth/login` → `{ token, role, kind }`
+- [x] `GET /api/club/branches`, `/api/club/branches/:id`, `/api/club/branches/:id/members`
+- [x] Leader approve/reject endpoints (`PATCH /api/club/members/{id}/status`, gated to leader/admin)
+- [x] `POST /api/admin/club-leaders` + `POST /api/admin/clubs` (admin creates leaders + branches — see §6 verify note)
 
-**Frontend patches (planned):**
-- [ ] Refactor `src/club/context/ClubContext.jsx` to call backend instead of localStorage
-- [ ] Replace club register/login forms to call `/api/club/auth/*`
-- [ ] `/club/branches/*` pages fetch real data
+**Frontend patches (applied):**
+- [x] `src/club/context/ClubContext.jsx` — added `currentPrincipal`, `loginWithBackend`, `registerMemberWithBackend`, `logoutClubBackend`, hydrate-on-mount effect via `clubApi.me()`. Legacy localStorage state retained for Phase 5+ features.
+- [x] `src/club/api/clubApi.js` — already present
+- [x] `src/club/api/useClubBackend.js` (NEW) — `useClubBranches` + `useClubMembers` hooks
+- [x] `src/club/pages/ClubLogin.jsx` — calls `loginWithBackend` instead of localStorage
+- [x] `src/club/pages/ClubRegister.jsx` — calls `registerMemberWithBackend` instead of localStorage
+- [x] `src/pages/AuthPage.jsx` — unified `/login` falls through to `loginWithBackend` on innovation 401; club-role register uses `registerMemberWithBackend`
+- [x] `src/club/pages/ClubBranches.jsx` — reads branches via `useClubBranches`
+- [x] `src/club/pages/ClubBranchDetail.jsx` — reads branch + members via `useClubBranches`/`useClubMembers`
+- [x] `src/club/pages/ClubLeaderDashboard.jsx` — derives pending/decided lists from backend members; uses `currentPrincipal.kind === 'LEADER'`
+- [x] `src/club/pages/ClubMemberDashboard.jsx` — uses `currentPrincipal.kind === 'MEMBER'`; verifies via backend `me.status`
 
 **Verify (end-to-end):**
-- [ ] Register a student club member via Club Register form
-- [ ] Register a club leader (seeded via DataSeedRunner)
-- [ ] Leader logs in → approves the student
-- [ ] Student logs in → sees their pending → active status change
+- [x] Leader login via `/login` lands on `/club/leader/dashboard` (backend 200 on `/api/club/auth/login`)
+- [x] Thunder: `POST /api/club/auth/register` (student) returns 201 with `status: PENDING`
+- [x] Leader approve via `PATCH /api/club/members/{id}/status` body `{"status":"ACTIVE"}` returns 200
+- [x] Member login + dashboard render (verify after refresh — `me.status === 'active'`)
+- [x] Branches list renders from backend (`GET /api/club/branches` 200)
+- [x] Branch detail + members render from backend (`GET /api/club/branches/:id/members` 200)
+
+> **Notes for future phases:**
+> 1. Admin creates leaders via `POST /api/admin/club-leaders` (not seeded — DataSeedRunner only seeds universities).
+> 2. Club project listing on member dashboard is **deferred to Phase 5** — Phase 4 scope is identity only.
+> 3. Legacy localStorage state in `ClubContext` (`students`, `clubLeaders`, `clubs`, …) is retained for the upcoming Phase 5 features (elections, treasury, discipline) that have no backend equivalents yet. The auth-aware surfaces (login, register, dashboards, branches list, branch detail) all read from the backend.
 
 ### 🟠 Phase 5 — Club extended (deferred — only on request)
 Elections, meetings, treasury, IP, discipline, amendments, dissolutions, onboarding.
 > **Each is its own sub-phase** because of the state machines and rules. Will batch only after core is stable.
+
+#### ✅ Phase 5A — Club Projects (live, university-scoped)
+- [x] `ClubProject` entity (FK to `ClubMember` + `Club`, reuses `ProjectPhase`, `@ElementCollection` tags, audit dates)
+- [x] `ClubProjectRepository` — `findAllByAuthorIdOrderByCreatedAtDesc`, `findAllByClubIdOrderByCreatedAtDesc`
+- [x] DTOs — `ClubProjectRequest` (bean validation) + `ClubProjectResponse` (record, `from(ClubProject)`)
+- [x] `ClubProjectService` — create (ACTIVE-gated), listMine, listForBranch (auth + same-university), delete (owner-only → 404); helper `requireSameUniversityOrAdmin()` for cross-uni guards (404 not 403)
+- [x] `ClubProjectController` — 4 endpoints with `@PreAuthorize` on the public branch feed too
+- [x] `ClubBranchService` — `listActiveForCaller` / `getOneForCaller` filter to caller's university (ADMIN bypass); `CallerScope` helper resolves member or leader by email
+- [x] `ClubBranchController` — `@PreAuthorize` on list + getOne; `/members` already gated
+- [x] `SecurityConfig` — `permitAll` removed for `/api/club/branches`, `/api/club/branches/*`, and `/api/club/branches/*/projects` (was a federation-wide privacy leak; now auth-required and university-scoped)
+- [x] Frontend — `clubApi` gains `createProject/myProjects/deleteProject/branchProjects`; `ClubCreateProject` posts to backend (PENDING → 403 surfaced inline); `ClubMemberDashboard` "My Projects" card hydrates from `GET /api/club/projects/me`; `ClubBranchDetail` shows the live project feed; `ClubBranches` redirects anonymous visitors to login and shows a friendly "session expired" hint on auth errors
+- [x] **Scope decision** — branches + their projects are **only visible to members/leaders of the same university** (admins see the federation). Cross-university access returns 404, not 403, so existence isn't leaked.
+
+#### ⬜ Phase 5B — next sub-phase (pick one per session)
+- [ ] Elections
+- [ ] Meetings
+- [ ] Treasury
+- [ ] IP registry
+- [ ] Discipline
+- [ ] Amendments / dissolutions
+- [ ] Onboarding
 
 ### ⚪ Phase 6 — Hardening (later)
 - [ ] Refresh tokens
