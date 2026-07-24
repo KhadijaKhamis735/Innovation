@@ -17,17 +17,25 @@ import java.net.URI;
 import java.util.List;
 
 /**
- * Phase 3A endpoints for innovator projects. All routes require JWT and the
- * INNOVATOR role (enforced per-method via {@code @PreAuthorize} — class-level
- * was tried but caused a NullPointerException on @AuthenticationPrincipal lookup
- * during initial calls).
+ * Unified project endpoints (Phase 5C-A).
  *
- * The acting user's email is read via SecurityContextHolder rather than
- * @AuthenticationPrincipal, because that combination with @PreAuthorize at the
- * class level wasn't reliable.
+ * Replaces the old {@code ProjectController} (innovation) and
+ * {@code ClubProjectController} (club). The acting surface is derived from
+ * the JWT role — see {@link ProjectService#create}.
+ *
+ * Per-endpoint @PreAuthorize matrix:
+ *   GET  /api/projects/me                        INNOVATOR | CLUB_MEMBER | CLUB_LEADER | ADMIN
+ *   POST /api/projects                           INNOVATOR | CLUB_MEMBER | CLUB_LEADER
+ *   GET  /api/projects/{id}                      isAuthenticated (privacy in service)
+ *   PUT  /api/projects/{id}                      INNOVATOR | CLUB_MEMBER | CLUB_LEADER
+ *   DELETE /api/projects/{id}                    INNOVATOR | CLUB_MEMBER | CLUB_LEADER
+ *   PATCH /api/projects/{id}/phase               INNOVATOR | CLUB_MEMBER | CLUB_LEADER
+ *   POST /api/projects/{id}/milestones           INNOVATOR | CLUB_MEMBER | CLUB_LEADER
+ *   PATCH /api/projects/{id}/milestones/{mid}    INNOVATOR | CLUB_MEMBER | CLUB_LEADER
+ *   DELETE /api/projects/{id}/milestones/{mid}   INNOVATOR | CLUB_MEMBER | CLUB_LEADER
+ *   GET  /api/club/branches/{id}/projects        CLUB_MEMBER | CLUB_LEADER | ADMIN
  */
 @RestController
-@RequestMapping("/api/projects")
 @RequiredArgsConstructor
 public class ProjectController {
 
@@ -36,75 +44,79 @@ public class ProjectController {
 
     // ── Project CRUD ────────────────────────────────────────────────
 
-    @GetMapping("/me")
-    @PreAuthorize("hasRole('INNOVATOR')")
+    @GetMapping("/api/projects/me")
+    @PreAuthorize("hasAnyRole('INNOVATOR','CLUB_MEMBER','CLUB_LEADER','ADMIN')")
     public List<ProjectResponse> listMine() {
         return projectService.listMine(currentEmail());
     }
 
-    @PostMapping
-    @PreAuthorize("hasRole('INNOVATOR')")
+    @PostMapping("/api/projects")
+    @PreAuthorize("hasAnyRole('INNOVATOR','CLUB_MEMBER','CLUB_LEADER')")
     public ResponseEntity<ProjectResponse> create(@Valid @RequestBody ProjectRequest req) {
         ProjectResponse created = projectService.create(req, currentEmail());
         return ResponseEntity.created(URI.create("/api/projects/" + created.id())).body(created);
     }
 
-    @GetMapping("/{id}")
-    @PreAuthorize("hasRole('INNOVATOR')")
+    @GetMapping("/api/projects/{id}")
+    @PreAuthorize("isAuthenticated()")
     public ProjectResponse getOne(@PathVariable Long id) {
         return projectService.getOne(id, currentEmail());
     }
 
-    @PutMapping("/{id}")
-    @PreAuthorize("hasRole('INNOVATOR')")
+    @PutMapping("/api/projects/{id}")
+    @PreAuthorize("hasAnyRole('INNOVATOR','CLUB_MEMBER','CLUB_LEADER')")
     public ProjectResponse update(@PathVariable Long id,
                                   @Valid @RequestBody ProjectRequest req) {
         return projectService.update(id, req, currentEmail());
     }
 
-    @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('INNOVATOR')")
+    @DeleteMapping("/api/projects/{id}")
+    @PreAuthorize("hasAnyRole('INNOVATOR','CLUB_MEMBER','CLUB_LEADER')")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@PathVariable Long id) {
         projectService.delete(id, currentEmail());
     }
 
-    @PatchMapping("/{id}/phase")
-    @PreAuthorize("hasRole('INNOVATOR')")
+    @PatchMapping("/api/projects/{id}/phase")
+    @PreAuthorize("hasAnyRole('INNOVATOR','CLUB_MEMBER','CLUB_LEADER')")
     public ProjectResponse updatePhase(@PathVariable Long id,
                                        @RequestParam ProjectPhase phase) {
         return projectService.updatePhase(id, phase, currentEmail());
     }
 
-    // ── Milestones ──────────────────────────────────────────────────
+    // ── Milestones (innovation-surface only — club projects have no milestones) ──
 
-    @PostMapping("/{id}/milestones")
-    @PreAuthorize("hasRole('INNOVATOR')")
+    @PostMapping("/api/projects/{id}/milestones")
+    @PreAuthorize("hasAnyRole('INNOVATOR','CLUB_MEMBER','CLUB_LEADER')")
     public ProjectResponse addMilestone(@PathVariable Long id,
                                         @Valid @RequestBody MilestoneRequest req) {
         return milestoneService.add(id, req, currentEmail());
     }
 
-    @PatchMapping("/{id}/milestones/{mid}")
-    @PreAuthorize("hasRole('INNOVATOR')")
+    @PatchMapping("/api/projects/{id}/milestones/{mid}")
+    @PreAuthorize("hasAnyRole('INNOVATOR','CLUB_MEMBER','CLUB_LEADER')")
     public MilestoneResponse updateMilestone(@PathVariable Long id,
                                              @PathVariable Long mid,
                                              @Valid @RequestBody MilestoneRequest req) {
         return milestoneService.update(mid, req, currentEmail());
     }
 
-    @DeleteMapping("/{id}/milestones/{mid}")
-    @PreAuthorize("hasRole('INNOVATOR')")
+    @DeleteMapping("/api/projects/{id}/milestones/{mid}")
+    @PreAuthorize("hasAnyRole('INNOVATOR','CLUB_MEMBER','CLUB_LEADER')")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteMilestone(@PathVariable Long id,
                                 @PathVariable Long mid) {
         milestoneService.delete(mid, currentEmail());
     }
 
-    /**
-     * Reads the authenticated principal's email straight from the SecurityContext.
-     * JWT filter sets the principal to the email string (see JwtAuthFilter).
-     */
+    // ── Branch feed (Phase 5A — kept on the unified controller) ─────
+
+    @GetMapping("/api/club/branches/{id}/projects")
+    @PreAuthorize("hasAnyRole('CLUB_MEMBER','CLUB_LEADER','ADMIN')")
+    public List<ProjectResponse> listForBranch(@PathVariable Long id) {
+        return projectService.listForBranch(id);
+    }
+
     private String currentEmail() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth == null || auth.getName() == null) {

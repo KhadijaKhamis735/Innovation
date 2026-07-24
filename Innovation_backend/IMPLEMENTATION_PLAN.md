@@ -475,14 +475,100 @@ Elections, meetings, treasury, IP, discipline, amendments, dissolutions, onboard
 - [x] Frontend — `clubApi` gains `createProject/myProjects/deleteProject/branchProjects`; `ClubCreateProject` posts to backend (PENDING → 403 surfaced inline); `ClubMemberDashboard` "My Projects" card hydrates from `GET /api/club/projects/me`; `ClubBranchDetail` shows the live project feed; `ClubBranches` redirects anonymous visitors to login and shows a friendly "session expired" hint on auth errors
 - [x] **Scope decision** — branches + their projects are **only visible to members/leaders of the same university** (admins see the federation). Cross-university access returns 404, not 403, so existence isn't leaked.
 
-#### ⬜ Phase 5B — next sub-phase (pick one per session)
-- [ ] Elections
-- [ ] Meetings
-- [ ] Treasury
-- [ ] IP registry
-- [ ] Discipline
-- [ ] Amendments / dissolutions
-- [ ] Onboarding
+#### ✅ Phase 5B-2 — Club Activities & Announcements (live)
+
+Built on 2026-07-24 after the Phase 5B removal left a hole in the leader's MVP. Mirrors the Phase 5A pattern: one entity per concept, same-university access (404 on cross-uni reads), ACTIVE-status gating for registration.
+
+**Backend — new packages `club.activity` and `club.announcement`:**
+- [x] `ClubActivity` entity (FK to `Club` + `ClubLeader`, type/status enums, audit dates, capacity, isOnline + meetingUrl)
+- [x] `ClubActivityType` enum: `WORKSHOP` / `TRAINING` / `PITCH_PRACTICE` / `DEMO_DAY` / `MEETING` / `OTHER`
+- [x] `ClubActivityStatus` enum: `SCHEDULED` / `CANCELLED` / `COMPLETED`
+- [x] `ClubActivityRegistration` entity (member ↔ activity signup; unique constraint)
+- [x] `ClubActivityRegistrationRepository` + `ClubActivityRepository`
+- [x] DTOs — `ActivityRequest` (bean validation), `ActivityResponse.from(activity, count, isCurrentUserRegistered)`, `RegistrationResponse`
+- [x] `ClubActivityService` — create/update/delete (organizer or admin), listForBranch/getOne (same-university auth), register/unregister (ACTIVE member at same branch; capacity + status + duplicate checks)
+- [x] `ClubActivityController` — 8 endpoints:
+  - `POST /api/club/branches/{id}/activities` (leader | admin)
+  - `GET /api/club/branches/{id}/activities` (member | leader | admin)
+  - `GET /api/club/activities/{id}`
+  - `PATCH /api/club/activities/{id}` (organizer | admin)
+  - `DELETE /api/club/activities/{id}` (organizer | admin)
+  - `POST /api/club/activities/{id}/register` (member, ACTIVE)
+  - `DELETE /api/club/activities/{id}/register` (member, ACTIVE)
+  - `GET /api/club/activities/{id}/registrations` (organizer | admin)
+- [x] `ClubAnnouncement` entity (FK to `Club` + `ClubLeader`, pinned flag, audit dates)
+- [x] `ClubAnnouncementRepository` — `findAllByClubIdOrderByPinnedDescCreatedAtDesc`
+- [x] DTOs — `AnnouncementRequest`, `AnnouncementResponse`
+- [x] `ClubAnnouncementService` + `ClubAnnouncementController` — 5 endpoints:
+  - `POST /api/club/branches/{id}/announcements` (leader | admin)
+  - `GET /api/club/branches/{id}/announcements` (member | leader | admin)
+  - `GET /api/club/announcements/{id}`
+  - `PATCH /api/club/announcements/{id}` (author | admin)
+  - `DELETE /api/club/announcements/{id}` (author | admin)
+- [x] `ClubAccessChecks` extracted from `ClubProjectService` into a shared `@Component` helper (`currentMember()`, `currentLeader()`, `requireSameUniversityOrAdmin(Club)`). Both `ClubProjectService` and `ClubActivityService` use it. No behavior change for existing project endpoints.
+
+**Frontend — new pages + API extensions:**
+- [x] `clubApi.js` — extended with 14 new methods (`listActivities`, `createActivity`, `getActivity`, `updateActivity`, `deleteActivity`, `registerForActivity`, `unregisterFromActivity`, `listActivityRegistrations`, `listAnnouncements`, `createAnnouncement`, `getAnnouncement`, `updateAnnouncement`, `deleteAnnouncement`)
+- [x] `useClubBackend.js` — added `useClubActivities(branchId)` and `useClubAnnouncements(branchId)` hooks
+- [x] `ClubActivities.jsx` — browse + filter + register/unregister (members) + create button (leaders)
+- [x] `ClubActivityDetail.jsx` — full detail with leader-only edit/delete + roster view for the organizer
+- [x] `ClubCreateActivity.jsx` / `ClubEditActivity.jsx` — shared `ActivityForm` with leader gate
+- [x] `ClubAnnouncements.jsx` — feed (pinned-first) with leader create/edit/delete
+- [x] `ClubCreateAnnouncement.jsx` / `ClubEditAnnouncement.jsx` — shared `AnnouncementForm`
+- [x] `ClubSidebar.jsx` — Activities + Announcements links + icons
+- [x] `App.jsx` — 7 new routes (4 activities + 3 announcements), wrapped with `ClubRouteGuard role="leader"` for create/edit
+
+**Verify (end-to-end, all passed ✅):**
+- [x] Leader login → `POST /api/club/branches/1/activities` with `{title, type:WORKSHOP, startAt, endAt, ...}` → 201 with id
+- [x] Leader `GET /api/club/branches/1/activities` → list with `registrationCount` and `isCurrentUserRegistered` per item
+- [x] Member (PENDING) `POST /api/club/activities/1/register` → 403
+- [x] Member (ACTIVE, same branch) same call → 201 with `RegistrationResponse`
+- [x] `isCurrentUserRegistered` flips to true on subsequent GET
+- [x] Member from a different university `GET /api/club/activities/1` → 404 (privacy pattern)
+- [x] Cross-uni leader `POST /api/club/branches/{otherBranchId}/activities` → 403
+- [x] Leader `DELETE /api/club/activities/1` → 204; rows in `club_activity_registrations` cascade-delete
+- [x] Same flow for announcements: leader posts → member reads → leader edits → admin can delete anything
+- [x] `mvn clean compile` → BUILD SUCCESS
+- [x] `npx vite build` → ✅ 102 modules, no errors
+
+**Scope decision** — activities + announcements are strictly university-scoped (404 on cross-uni reads). Same privacy pattern as Phase 5A.
+
+#### ⛔ Phase 5B — REMOVED 2026-07-24
+
+The following sub-phases were scoped and (for Elections) partially built, but the user decided they are **not important enough to keep in the system** and removed both backend and frontend code on 2026-07-24. Phase 5A (Club Projects) is the only live piece of "extended club work". Reason: out of MVP scope — the system already covers innovation flow + club identity + club projects + read-only executive committee + constitution/conduct/conflict/IP. Governance workflows beyond that were not on the critical path.
+
+| Sub-phase | Backend status at removal | Frontend status at removal |
+|---|---|---|
+| Elections (Phase 5B-1) | ✅ Built (compiling, never deployed) | localStorage pages deleted |
+| Meetings | Not built | localStorage pages deleted |
+| Treasury | Not built | localStorage pages deleted |
+| Discipline | Not built | localStorage pages deleted |
+| Amendments | Not built | localStorage pages deleted |
+| Dissolution | Not built | localStorage pages deleted |
+| Onboarding | Not built | localStorage pages deleted |
+| Handover | Not built | localStorage pages + ClubContext selectors deleted |
+
+**What was removed:**
+- Backend: the entire `club/election/` package (36 files: entities, repos, services, two controllers, DTOs) + 3 election-related exception handlers in `GlobalExceptionHandler`.
+- Frontend: 26 page files in `src/club/pages/`, 3 data files (`data/elections.js`, `data/meetings.js`, `data/treasury.js`), and partial prune of `data/constitution.js`. ~1,622 lines deleted from `ClubContext.jsx` (selector functions + duplicate value-object entries); import surface collapsed. Sidebar collapsed to: Dashboard / All Branches / My Committee / Code of Conduct / Constitution.
+- Database: 7 Hibernate-managed tables (`club_elections`, `club_nominations`, `club_ballots`, `club_election_results`, `club_election_committees`, `club_election_complaints`, `club_executives`). A manual SQL DROP script was provided — see the commit message on 2026-07-24.
+
+**What was deliberately kept as read-only:**
+- `executives` state, `executivesForBranch`, `executiveForPosition`, `memberForExecutive`, `executivePositions` — used by `ClubExecutiveCommittee.jsx`, `ClubPositionDuties.jsx`, `ClubPatron.jsx`. Becomes read-only; no UI to appoint or remove executives.
+- `appointExecutive`, `removeExecutive` selectors stay defined but no UI invokes them after the removal.
+- `data/constitution.js` keeps `CONSTITUTION_META`, `IBARA_LIST`, `SURA_LIST` for `ClubConstitution.jsx`. `AMENDMENT_RULES`, `DISSOLUTION_RULES`, `ONBOARDING_STEPS` exports deleted (orphaned).
+- Constitution / Code of Conduct / Conflict Disclosure / IP Registry pages (and their state) all kept — they're static-data or have a kept-product story.
+
+> **Re-introducing these:** If any sub-phase needs to come back later, Phase 5B-1 (Elections) is the only one that has the design + state-machine diagrams archived in git history. The other sub-phases were never built, so adding them means starting from the §3.2 entity inventory. The frontend `clubSeed.js` `SEEDED_FLAG` was bumped to `v4` to drop deleted keys from returning users' localStorage.
+
+#### ⛔ Phase 5B-1 — Elections backend (REMOVED 2026-07-24 — was here, now gone)
+**Backend (was here):**
+- [x] `election/` package — entities, repos, services, two controllers, DTOs (DELETED 2026-07-24)
+- [x] `ClubElectionService` + `ClubExecutiveService` (DELETED)
+- [x] Secret-ballot guarantee at the repository boundary (DELETED)
+- [x] Same-university 404 pattern (preserved in remaining code via `ClubProjectService`)
+
+**Removed because:** the user determined elections / executive appointment flows are out of MVP scope. The system retains read-only executive committee display via the kept `executives` state in `ClubContext.jsx`.
 
 ### ⚪ Phase 6 — Hardening (later)
 - [ ] Refresh tokens
@@ -510,7 +596,17 @@ Elections, meetings, treasury, IP, discipline, amendments, dissolutions, onboard
 
 ## 8. Next Step
 
-**Proceed to Phase 3A: Innovator Projects (independent, safe starting point).** Stop and confirm after 3A before starting 3B.
+Innovation surface is feature-complete (Phases 0–3C) and the club surface is at Phase 4 + Phase 5A. The Phase 5B sub-phases (Elections, Meetings, Treasury, Discipline, Amendments, Dissolutions, Onboarding, Handover) were **removed 2026-07-24** as out of MVP scope — see the ⛔ banner above Phase 5B.
+
+Going forward, the live features are:
+
+- Innovation: register/login, innovator projects + ZSA approval, opportunities + organizations + applications (funder-gated), admin moderation + stats.
+- Club: branch listing + detail (university-scoped), member registration + leader approval, leader dashboard, club projects, **read-only** executive committee / position duties / patron, constitution viewer, code of conduct signatures, conflict-of-interest disclosure, IP registry.
+
+Suggested next moves (any of):
+1. **Phase 6 — Hardening** — Flyway migrations, refresh tokens, file uploads, real email service. See the deferred list below.
+2. Re-introduce one of the removed club sub-phases if the product needs it (Elections is the most-likely candidate; design artifacts are in git history).
+3. Polish existing flows — empty states, error toasts, mobile responsiveness.
 
 ---
 
@@ -578,3 +674,15 @@ These were settled by the user. Treat them as facts unless the user explicitly c
 | Validation rules | Password ≥ 6 chars, contains at least one digit (matches `RegisterPage.jsx`) |
 | Test data on backend startup | None for users (only admin is seeded); no opportunities/projects seeded |
 | Decisions still open | §7 — re-read before changing role-casing, opportunity type vocab, application stage vocab |
+
+
+Phase 5B-2 — Club Activities (new sub-phase)
+Backend: ClubActivity entity (FK to Club + author member/leader), ActivityRegistration for member signups. Endpoints: GET /api/club/branches/{id}/activities (public to same-university auth), POST /api/club/branches/{id}/activities (leader), PATCH /api/club/activities/{id} (leader/owner), POST /api/club/activities/{id}/register (member), DELETE /api/club/activities/{id}/register (un-register).
+Frontend: ClubActivities.jsx (member browse + register), ClubManageActivities.jsx (leader CRUD), sidebar links, ClubContext state slots.
+
+
+Phase 5B-3 — Club Announcements (new sub-phase, smaller)
+Backend: ClubAnnouncement entity. Endpoints: GET /api/club/branches/{id}/announcements, POST (leader), DELETE (leader/owner).
+Frontend: feed rendered at top of ClubBranchDetail.jsx; leader CRUD page.
+Phase 5C — Unify projects + evidence (deferred — bigger scope)
+Migration to a single projects table or a join view; add file upload (decide local storage vs S3 vs DB blob).

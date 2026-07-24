@@ -2,6 +2,9 @@ package com.example.Innovation_backend.common;
 
 import com.example.Innovation_backend.application.ApplicationService;
 import com.example.Innovation_backend.club.ClubAuthService;
+import com.example.Innovation_backend.project.attachment.LimitExceededException;
+import com.example.Innovation_backend.project.attachment.ProjectAttachmentService;
+import com.example.Innovation_backend.project.attachment.StorageException;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.extern.slf4j.Slf4j;
 import jakarta.servlet.http.HttpServletRequest;
@@ -12,6 +15,7 @@ import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.stream.Collectors;
@@ -103,6 +107,53 @@ public class GlobalExceptionHandler {
             ClubAuthService.DuplicatePrincipalException ex, HttpServletRequest req) {
         ApiError body = ApiError.of(409, "Conflict", ex.getMessage(), req.getRequestURI());
         return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
+    }
+
+    /**
+     * Phase 5C-B — file exceeds Spring's multipart limit (caught at the
+     * servlet layer before the controller runs). 413 Payload Too Large is
+     * the precise HTTP status for this case.
+     */
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ApiError> handleMaxUpload(MaxUploadSizeExceededException ex, HttpServletRequest req) {
+        ApiError body = ApiError.of(413, "Payload Too Large",
+                "File exceeds the maximum upload size", req.getRequestURI());
+        return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE).body(body);
+    }
+
+    /**
+     * Phase 5C-B — business-rule limit hit: 5 attachments per project, or a
+     * file over the 10 MB cap that the application enforces (vs Spring's
+     * 10 MB / 12 MB multipart cap, which becomes 413 above).
+     */
+    @ExceptionHandler(LimitExceededException.class)
+    public ResponseEntity<ApiError> handleLimit(LimitExceededException ex, HttpServletRequest req) {
+        ApiError body = ApiError.of(422, "Unprocessable Entity", ex.getMessage(), req.getRequestURI());
+        return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).body(body);
+    }
+
+    /**
+     * Phase 5C-B — attachment row exists but the underlying file is gone
+     * (e.g. a cleanup pass reaped it). 410 Gone is the right code — the
+     * row used to point at something, now it doesn't.
+     */
+    @ExceptionHandler(ProjectAttachmentService.GoneException.class)
+    public ResponseEntity<ApiError> handleGone(ProjectAttachmentService.GoneException ex, HttpServletRequest req) {
+        ApiError body = ApiError.of(410, "Gone", ex.getMessage(), req.getRequestURI());
+        return ResponseEntity.status(HttpStatus.GONE).body(body);
+    }
+
+    /**
+     * Phase 5C-B — unexpected storage IO failure (disk full, permission
+     * denied, etc.). Logged at WARN with the path so we can debug without
+     * leaking filesystem details to the client.
+     */
+    @ExceptionHandler(StorageException.class)
+    public ResponseEntity<ApiError> handleStorage(StorageException ex, HttpServletRequest req) {
+        log.warn("Storage error at {} {}: {}", req.getMethod(), req.getRequestURI(), ex.getMessage());
+        ApiError body = ApiError.of(500, "Internal Server Error",
+                "Storage error", req.getRequestURI());
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(body);
     }
 
     @ExceptionHandler(Exception.class)

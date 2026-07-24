@@ -1,11 +1,17 @@
 package com.example.Innovation_backend.project;
 
+import com.example.Innovation_backend.club.Club;
+import com.example.Innovation_backend.club.ClubAccessChecks;
+import com.example.Innovation_backend.club.ClubMember;
+import com.example.Innovation_backend.club.ClubRepository;
+import com.example.Innovation_backend.club.MembershipStatus;
 import com.example.Innovation_backend.project.dto.MilestoneRequest;
 import com.example.Innovation_backend.project.dto.ProjectRequest;
 import com.example.Innovation_backend.project.dto.ProjectResponse;
 import com.example.Innovation_backend.user.Role;
 import com.example.Innovation_backend.user.User;
 import com.example.Innovation_backend.user.UserRepository;
+import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
@@ -16,14 +22,21 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Business logic for innovator projects. Every mutation checks that the
- * acting user is the project's owner (or throws {@link AccessDeniedException}
- * which the global handler converts to 403).
+ * Business logic for the unified {@link ProjectEntity} (Phase 5C-A).
  *
- * Phase 3A: only INNOVATOR role can hit these endpoints. The role check is
- * done at the controller via {@code @PreAuthorize}; this service still
- * verifies ownership independently so a future Funder/Admin override path
- * can be added without re-plumbing the owner check.
+ * The {@code surface} (INNOVATION | CLUB) is derived from the JWT role —
+ * never from the request body. This prevents a club member from creating a
+ * project that bypasses the admin ZSA approval by claiming to be INNOVATION.
+ *
+ * Privacy rules (mirrors Phase 5A club project rules):
+ *   - INNOVATION rows: open reads for any authenticated user; mutations are
+ *     owner-only.
+ *   - CLUB rows: same-university access enforced via
+ *     {@link ClubAccessChecks#requireSameUniversityOrAdmin(Club)}; mutations
+ *     are owner-only.
+ *
+ * Notify pattern: 404 (not 403) when a caller lacks access — never leak the
+ * existence of a project they shouldn't see.
  */
 @Service
 @RequiredArgsConstructor
@@ -31,13 +44,21 @@ public class ProjectService {
 
     private final ProjectRepository projectRepo;
     private final UserRepository userRepo;
+    private final ClubRepository clubRepo;
+    private final ClubAccessChecks clubAccessChecks;
 
     // ── Reads ────────────────────────────────────────────────────────
 
+    /**
+     * Returns projects owned by the caller — across both surfaces. The caller
+     * is identified by email; if both a User and a ClubMember share the same
+     * email (extremely rare), both sets are returned.
+     */
     @Transactional(readOnly = true)
     public List<ProjectResponse> listMine(String email) {
-        User owner = mustInnovator(email);
-        return projectRepo.findAllByOwnerIdOrderByCreatedAtDesc(owner.getId())
+        Long ownerId = resolveOwnerIdForList(email);
+        if (ownerId == null) return List.of();
+        return projectRepo.findAllByOwnerIdOrderByCreatedAtDesc(ownerId)
                 .stream()
                 .map(ProjectResponse::fromEntity)
                 .toList();
@@ -45,80 +66,202 @@ public class ProjectService {
 
     @Transactional(readOnly = true)
     public ProjectResponse getOne(Long id, String email) {
-        return ProjectResponse.fromEntity(loadOwned(id, email));
+        ProjectEntity p = projectRepo.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Project not found: " + id));
+        enforceReadVisibility(p, email);
+        return ProjectResponse.fromEntity(p);
+    }
+
+    /**
+     * Public branch feed (Phase 5A-style). Same-university access enforced so
+     * cross-uni reads return 404.
+     */
+    @Transactional(readOnly = true)
+    public List<ProjectResponse> listForBranch(Long clubId) {
+        Club club = clubRepo.findById(clubId)
+                .orElseThrow(() -> new EntityNotFoundException("Club not found: " + clubId));
+        clubAccessChecks.requireSameUniversityOrAdmin(club);
+        return projectRepo.findAllByClubIdOrderByCreatedAtDesc(clubId)
+                .stream()
+                .map(ProjectResponse::fromEntity)
+                .toList();
     }
 
     // ── Mutations ────────────────────────────────────────────────────
 
     @Transactional
     public ProjectResponse create(ProjectRequest req, String email) {
-        User owner = mustInnovator(email);
-        InnovatorProject p = InnovatorProject.builder()
-                .owner(owner)
-                // zsaId is null on create — admin assigns it on approval
-                .zsaId(null)
-                .approvalStatus(ProjectApprovalStatus.PENDING)
-                .name(req.name().trim())
-                .category(req.category())
-                .phase(req.phase())
-                .description(req.description())
-                .startDate(req.startDate() != null ? req.startDate() : LocalDate.now())
-                .milestones(new ArrayList<>())
-                .build();
-        applyMilestones(p, req.milestones());
-        return ProjectResponse.fromEntity(projectRepo.save(p));
+        CallerIdentity caller = resolveCaller(email);
+
+        if (caller.isInnovator()) {
+            User owner = caller.user();
+            ProjectEntity p = ProjectEntity.builder()
+                    .surface(ProjectSurface.INNOVATION)
+                    .ownerUser(owner)
+                    .name(req.name().trim())
+                    .tagline(trimOrNull(req.tagline()))
+                    .description(trimOrNull(req.description()))
+                    .category(req.category())
+                    .phase(req.phase())
+                    .startDate(req.startDate() != null ? req.startDate() : LocalDate.now())
+                    .zsaId(null)
+                    .approvalStatus(ProjectApprovalStatus.PENDING)
+                    .tags(new ArrayList<>())
+                    .milestones(new ArrayList<>())
+                    .build();
+            applyMilestones(p, req.milestones());
+            return ProjectResponse.fromEntity(projectRepo.save(p));
+        }
+
+        if (caller.isClubMember()) {
+            ClubMember member = caller.member();
+            if (member.getStatus() != MembershipStatus.ACTIVE) {
+                throw new AccessDeniedException(
+                        "Only active club members can post projects. Your status is "
+                                + member.getStatus().json() + ".");
+            }
+            ProjectEntity p = ProjectEntity.builder()
+                    .surface(ProjectSurface.CLUB)
+                    .ownerMember(member)
+                    .club(member.getClub())
+                    .name(req.name().trim())
+                    .tagline(trimOrNull(req.tagline()))
+                    .description(trimOrNull(req.description()))
+                    .category(req.category() == null || req.category().isBlank()
+                            ? "General" : req.category().trim())
+                    .phase(req.phase() == null ? ProjectPhase.IDEA : req.phase())
+                    .tags(cleanTags(req.tags()))
+                    .milestones(new ArrayList<>())
+                    .build();
+            return ProjectResponse.fromEntity(projectRepo.save(p));
+        }
+
+        throw new AccessDeniedException("Unsupported role for project creation");
     }
 
     @Transactional
     public ProjectResponse update(Long id, ProjectRequest req, String email) {
-        InnovatorProject p = loadOwned(id, email);
-        // Innovator cannot change zsaId or approvalStatus — those are admin-only
+        ProjectEntity p = loadOwned(id, email);
         p.setName(req.name().trim());
+        p.setTagline(trimOrNull(req.tagline()));
+        p.setDescription(trimOrNull(req.description()));
         p.setCategory(req.category());
         p.setPhase(req.phase());
-        p.setDescription(req.description());
         if (req.startDate() != null) p.setStartDate(req.startDate());
+        if (p.getSurface() == ProjectSurface.CLUB && req.tags() != null) {
+            p.setTags(cleanTags(req.tags()));
+        }
+        // Innovation projects can't change zsaId/approvalStatus and CLUB projects
+        // don't have them — both fields are admin-only.
 
-        // Replace milestones wholesale (simpler than diff-merge for Phase 3A)
-        p.getMilestones().clear();
-        applyMilestones(p, req.milestones());
+        // Replace milestones wholesale (only meaningful for INNOVATION projects).
+        if (p.getSurface() == ProjectSurface.INNOVATION) {
+            p.getMilestones().clear();
+            applyMilestones(p, req.milestones());
+        }
         return ProjectResponse.fromEntity(projectRepo.save(p));
     }
 
     @Transactional
     public void delete(Long id, String email) {
-        InnovatorProject p = loadOwned(id, email);
+        ProjectEntity p = loadOwned(id, email);
         projectRepo.delete(p);
     }
 
     @Transactional
     public ProjectResponse updatePhase(Long id, ProjectPhase phase, String email) {
-        InnovatorProject p = loadOwned(id, email);
+        ProjectEntity p = loadOwned(id, email);
         p.setPhase(phase);
         return ProjectResponse.fromEntity(projectRepo.save(p));
     }
 
-    // ── Internals ────────────────────────────────────────────────────
+    // ── Internals ───────────────────────────────────────────────────
 
-    /** Loads a project that belongs to the caller, else 404 or 403. */
-    private InnovatorProject loadOwned(Long id, String email) {
-        User owner = mustInnovator(email);
-        return projectRepo.findByIdAndOwnerId(id, owner.getId())
-                .orElseThrow(() -> new IllegalArgumentException("Project not found: " + id));
-    }
+    private ProjectEntity loadOwned(Long id, String email) {
+        ProjectEntity p = projectRepo.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Project not found: " + id));
 
-    /** Loads the caller, asserts INNOVATOR role. */
-    private User mustInnovator(String email) {
-        User u = userRepo.findByEmail(email.trim().toLowerCase())
-                .orElseThrow(() -> new IllegalArgumentException("User not found: " + email));
-        if (u.getRole() != Role.INNOVATOR) {
-            throw new AccessDeniedException("Only innovators can access projects");
+        if (p.getSurface() == ProjectSurface.INNOVATION) {
+            User u = userRepo.findByEmail(email.trim().toLowerCase())
+                    .orElseThrow(() -> new AccessDeniedException(
+                            "Only the project owner can mutate this project"));
+            if (u.getRole() != Role.INNOVATOR
+                    || p.getOwnerUser() == null
+                    || !p.getOwnerUser().getId().equals(u.getId())) {
+                // 404 (not 403) — same convention as the old ClubProjectService.
+                throw new EntityNotFoundException("Project not found: " + id);
+            }
+            return p;
         }
-        return u;
+
+        if (p.getSurface() == ProjectSurface.CLUB) {
+            ClubMember member = clubAccessChecks.currentMember();
+            if (p.getOwnerMember() == null
+                    || !p.getOwnerMember().getId().equals(member.getId())) {
+                throw new EntityNotFoundException("Project not found: " + id);
+            }
+            return p;
+        }
+
+        throw new EntityNotFoundException("Project not found: " + id);
     }
 
-    /** Copies nested milestone DTOs onto the project entity. */
-    private void applyMilestones(InnovatorProject p, List<MilestoneRequest> milestones) {
+    private void enforceReadVisibility(ProjectEntity p, String email) {
+        if (p.getSurface() == ProjectSurface.INNOVATION) {
+            return; // public to any authenticated user
+        }
+        if (p.getSurface() == ProjectSurface.CLUB) {
+            clubAccessChecks.requireSameUniversityOrAdmin(p.getClub());
+            return;
+        }
+        throw new EntityNotFoundException("Project not found: " + p.getId());
+    }
+
+    /**
+     * Lightweight caller resolution. Used by {@link #listMine(String)} —
+     * returns null if the caller is neither an innovator nor a club member.
+     */
+    private Long resolveOwnerIdForList(String email) {
+        String normalised = email.trim().toLowerCase();
+        var user = userRepo.findByEmail(normalised);
+        if (user.isPresent() && user.get().getRole() == Role.INNOVATOR) {
+            return user.get().getId();
+        }
+        return clubAccessChecks.currentMemberOpt()
+                .map(ClubMember::getId)
+                .orElseGet(() -> user.map(User::getId).orElse(null));
+    }
+
+    private CallerIdentity resolveCaller(String email) {
+        String normalised = email.trim().toLowerCase();
+        var user = userRepo.findByEmail(normalised);
+        if (user.isPresent()) {
+            if (user.get().getRole() == Role.INNOVATOR) {
+                return CallerIdentity.innovator(user.get());
+            }
+            if (user.get().getRole() == Role.ADMIN) {
+                throw new AccessDeniedException(
+                        "Admins must use the admin project endpoints");
+            }
+        }
+        ClubMember member = clubAccessChecks.currentMember();
+        return CallerIdentity.clubMember(member);
+    }
+
+    private static String trimOrNull(String s) {
+        return s == null || s.isBlank() ? null : s.trim();
+    }
+
+    private static List<String> cleanTags(List<String> in) {
+        if (in == null) return new ArrayList<>();
+        List<String> out = new ArrayList<>();
+        for (String t : in) {
+            if (t != null && !t.isBlank()) out.add(t.trim());
+        }
+        return out;
+    }
+
+    private static void applyMilestones(ProjectEntity p, List<MilestoneRequest> milestones) {
         if (milestones == null) return;
         for (int i = 0; i < milestones.size(); i++) {
             MilestoneRequest mr = milestones.get(i);
@@ -132,5 +275,14 @@ public class ProjectService {
                     .build();
             p.addMilestone(m);
         }
+    }
+
+    // ── Tiny value type ─────────────────────────────────────────────
+
+    private record CallerIdentity(User user, ClubMember member) {
+        static CallerIdentity innovator(User u) { return new CallerIdentity(u, null); }
+        static CallerIdentity clubMember(ClubMember m) { return new CallerIdentity(null, m); }
+        boolean isInnovator() { return user != null; }
+        boolean isClubMember() { return member != null; }
     }
 }

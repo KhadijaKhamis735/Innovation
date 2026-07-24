@@ -1,11 +1,15 @@
 package com.example.Innovation_backend.project;
 
+import com.example.Innovation_backend.club.ClubAccessChecks;
+import com.example.Innovation_backend.club.ClubMember;
+import com.example.Innovation_backend.club.MembershipStatus;
 import com.example.Innovation_backend.project.dto.MilestoneRequest;
 import com.example.Innovation_backend.project.dto.MilestoneResponse;
 import com.example.Innovation_backend.project.dto.ProjectResponse;
 import com.example.Innovation_backend.user.Role;
 import com.example.Innovation_backend.user.User;
 import com.example.Innovation_backend.user.UserRepository;
+import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
@@ -15,7 +19,8 @@ import java.time.LocalDate;
 
 /**
  * Milestone add/update/delete for an existing project. The acting user must
- * own the parent project (owner-check via {@link MilestoneRepository#findByIdAndProjectOwnerId}).
+ * own the parent project (the polymorphic owner-user check is encoded in
+ * {@link MilestoneRepository#findByIdAndProjectOwnerId}).
  */
 @Service
 @RequiredArgsConstructor
@@ -24,12 +29,11 @@ public class MilestoneService {
     private final MilestoneRepository milestoneRepo;
     private final ProjectRepository projectRepo;
     private final UserRepository userRepo;
+    private final ClubAccessChecks clubAccessChecks;
 
     @Transactional
     public ProjectResponse add(Long projectId, MilestoneRequest req, String email) {
-        User owner = mustInnovator(email);
-        InnovatorProject project = projectRepo.findByIdAndOwnerId(projectId, owner.getId())
-                .orElseThrow(() -> new IllegalArgumentException("Project not found: " + projectId));
+        ProjectEntity project = loadOwned(projectId, email);
 
         int nextPos = project.getMilestones().size();
         Milestone m = Milestone.builder()
@@ -46,9 +50,10 @@ public class MilestoneService {
 
     @Transactional
     public MilestoneResponse update(Long milestoneId, MilestoneRequest req, String email) {
-        User owner = mustInnovator(email);
-        Milestone m = milestoneRepo.findByIdAndProjectOwnerId(milestoneId, owner.getId())
-                .orElseThrow(() -> new IllegalArgumentException("Milestone not found: " + milestoneId));
+        Long ownerId = resolveOwnerId(email);
+        Milestone m = milestoneRepo.findByIdAndProjectOwnerId(milestoneId, ownerId)
+                .orElseThrow(() -> new EntityNotFoundException(
+                        "Milestone not found: " + milestoneId));
 
         if (req.name() != null && !req.name().isBlank()) m.setName(req.name().trim());
         if (req.description() != null) m.setDescription(req.description());
@@ -60,7 +65,6 @@ public class MilestoneService {
             m.setCompletedDate(LocalDate.now());
         }
         if (!req.completed() && wasCompleted) {
-            // Unchecking clears the recorded completion date
             m.setCompletedDate(null);
         }
         if (req.completedDate() != null) m.setCompletedDate(req.completedDate());
@@ -71,18 +75,56 @@ public class MilestoneService {
 
     @Transactional
     public void delete(Long milestoneId, String email) {
-        User owner = mustInnovator(email);
-        Milestone m = milestoneRepo.findByIdAndProjectOwnerId(milestoneId, owner.getId())
-                .orElseThrow(() -> new IllegalArgumentException("Milestone not found: " + milestoneId));
+        Long ownerId = resolveOwnerId(email);
+        Milestone m = milestoneRepo.findByIdAndProjectOwnerId(milestoneId, ownerId)
+                .orElseThrow(() -> new EntityNotFoundException(
+                        "Milestone not found: " + milestoneId));
         milestoneRepo.delete(m);
     }
 
-    private User mustInnovator(String email) {
-        User u = userRepo.findByEmail(email.trim().toLowerCase())
-                .orElseThrow(() -> new IllegalArgumentException("User not found: " + email));
-        if (u.getRole() != Role.INNOVATOR) {
-            throw new AccessDeniedException("Only innovators can access projects");
+    // ── Internals ───────────────────────────────────────────────────
+
+    private ProjectEntity loadOwned(Long projectId, String email) {
+        Long ownerId = resolveOwnerId(email);
+        return projectRepo.findById(projectId)
+                .filter(p -> {
+                    if (p.getSurface() == ProjectSurface.INNOVATION) {
+                        return p.getOwnerUser() != null
+                                && p.getOwnerUser().getId().equals(ownerId);
+                    }
+                    if (p.getSurface() == ProjectSurface.CLUB) {
+                        return p.getOwnerMember() != null
+                                && p.getOwnerMember().getId().equals(ownerId);
+                    }
+                    return false;
+                })
+                .orElseThrow(() -> new EntityNotFoundException(
+                        "Project not found: " + projectId));
+    }
+
+    /**
+     * Returns the caller's "owner id" for both surfaces:
+     *   - INNOVATOR        → users.id
+     *   - CLUB_MEMBER      → club_members.id
+     *   - CLUB_LEADER      → club_members.id (leaders are stored in their own table
+     *                                         but the owner-of-project check uses
+     *                                         the member's id when the surface is CLUB).
+     *   - ADMIN            → fails (admins don't author projects from this path).
+     */
+    private Long resolveOwnerId(String email) {
+        String normalised = email.trim().toLowerCase();
+        var user = userRepo.findByEmail(normalised);
+        if (user.isPresent()) {
+            if (user.get().getRole() != Role.INNOVATOR) {
+                throw new AccessDeniedException("Only innovators can mutate innovation projects");
+            }
+            return user.get().getId();
         }
-        return u;
+        ClubMember member = clubAccessChecks.currentMember();
+        if (member.getStatus() != MembershipStatus.ACTIVE) {
+            throw new AccessDeniedException(
+                    "Only active club members can mutate projects");
+        }
+        return member.getId();
     }
 }

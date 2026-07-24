@@ -30,7 +30,7 @@ public class Milestone {
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "project_id", nullable = false,
             foreignKey = @ForeignKey(name = "fk_milestone_project"))
-    private InnovatorProject project;
+    private ProjectEntity project;
 
     @Column(nullable = false, length = 200)
     private String name;
