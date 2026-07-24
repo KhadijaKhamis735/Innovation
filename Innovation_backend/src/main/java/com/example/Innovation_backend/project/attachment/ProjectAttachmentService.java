@@ -86,8 +86,13 @@ public class ProjectAttachmentService {
         String pendingPath = localStorage.buildPendingPath(projectId, originalName);
         String finalPath = pendingPath.replace("/_pending/", "/");
 
+        // Trust the actual bytes written (returned by storage.store) over the
+        // multipart's advertised size — a partial / truncated upload would
+        // otherwise be reported as full-size in the DB row.
+        long actualBytes;
         try (InputStream in = file.getInputStream()) {
-            storage.store(pendingPath, in, file.getSize());
+            StorageProvider.StoredObject stored = storage.store(pendingPath, in, file.getSize());
+            actualBytes = stored.sizeBytes();
             localStorage.commit(pendingPath, finalPath);
         } catch (IOException ioe) {
             // Roll back the staging file; transaction rolls back the (not-yet-inserted) row.
@@ -100,7 +105,7 @@ public class ProjectAttachmentService {
                 .originalFilename(safeFilename(originalName))
                 .storagePath(finalPath)
                 .mimeType(file.getContentType())
-                .sizeBytes(file.getSize())
+                .sizeBytes(actualBytes)
                 .kind(kind != null ? kind : AttachmentKind.EVIDENCE)
                 .caption(caption != null && !caption.isBlank() ? caption.trim() : null)
                 .uploadedByUser(p.getSurface() == ProjectSurface.INNOVATION ? resolveInnovator(callerEmail) : null)

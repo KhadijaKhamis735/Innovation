@@ -1,6 +1,7 @@
 package com.example.Innovation_backend.common;
 
 import com.example.Innovation_backend.application.ApplicationService;
+import com.example.Innovation_backend.auth.RefreshTokenService;
 import com.example.Innovation_backend.club.ClubAuthService;
 import com.example.Innovation_backend.project.attachment.LimitExceededException;
 import com.example.Innovation_backend.project.attachment.ProjectAttachmentService;
@@ -161,9 +162,61 @@ public class GlobalExceptionHandler {
         // Log the full stack so we can debug 500s without restarting the server.
         log.error("Unhandled exception at {} {}: {}",
                 req.getMethod(), req.getRequestURI(), ex.getMessage(), ex);
+        // Echo the message back to the client, but redact messages from
+        // exceptions that may carry SQL fragments, column values, or schema
+        // details (e.g. JpaSystemException, DataIntegrityViolationException,
+        // PSQLException). The full message is still in the server logs.
         ApiError body = ApiError.of(500, "Internal Server Error",
-                ex.getClass().getSimpleName() + ": " + ex.getMessage(),
+                safeClientMessage(ex),
                 req.getRequestURI());
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(body);
+    }
+
+    /**
+     * Whitelist of exception types whose messages are safe to surface to the
+     * client. Anything else gets a generic "An unexpected error occurred"
+     * so we don't leak SQL fragments, column values, or schema details
+     * that may be embedded in {@code ex.getMessage()}.
+     */
+    private static String safeClientMessage(Exception ex) {
+        String simpleName = ex.getClass().getSimpleName();
+        if (ex instanceof IllegalStateException
+                || ex instanceof UnsupportedOperationException
+                || ex instanceof NullPointerException
+                || ex instanceof IndexOutOfBoundsException) {
+            // Programmer errors — safe to surface; helps during dev.
+            return simpleName + ": " + ex.getMessage();
+        }
+        // Default: hide the message; client gets a generic body.
+        return "An unexpected error occurred";
+    }
+
+    /**
+     * Phase 6A — refresh token not recognised, expired, or absent. The frontend
+     * uses this to decide whether to silently redirect to login (401) or surface
+     * an error toast (anything else). We deliberately keep the message generic
+     * so an attacker probing for valid cookies can't distinguish "not found" from
+     * "expired".
+     */
+    @ExceptionHandler(RefreshTokenService.InvalidRefreshException.class)
+    public ResponseEntity<ApiError> handleInvalidRefresh(
+            RefreshTokenService.InvalidRefreshException ex, HttpServletRequest req) {
+        ApiError body = ApiError.of(401, "Unauthorized", "Refresh token invalid", req.getRequestURI());
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(body);
+    }
+
+    /**
+     * Phase 6A — reuse of a revoked refresh token. We treat this as 401 from the
+     * caller's perspective (their session is dead) but log at WARN — this is the
+     * signal we use to detect token theft and we want it loud.
+     */
+    @ExceptionHandler(RefreshTokenService.ReuseDetectedException.class)
+    public ResponseEntity<ApiError> handleReuse(
+            RefreshTokenService.ReuseDetectedException ex, HttpServletRequest req) {
+        log.warn("Refresh token reuse detected at {} {}: {}",
+                req.getMethod(), req.getRequestURI(), ex.getMessage());
+        ApiError body = ApiError.of(401, "Unauthorized",
+                "Session revoked due to suspected token reuse", req.getRequestURI());
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(body);
     }
 }

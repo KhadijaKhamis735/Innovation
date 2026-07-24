@@ -684,5 +684,26 @@ Frontend: ClubActivities.jsx (member browse + register), ClubManageActivities.js
 Phase 5B-3 — Club Announcements (new sub-phase, smaller)
 Backend: ClubAnnouncement entity. Endpoints: GET /api/club/branches/{id}/announcements, POST (leader), DELETE (leader/owner).
 Frontend: feed rendered at top of ClubBranchDetail.jsx; leader CRUD page.
-Phase 5C — Unify projects + evidence (deferred — bigger scope)
-Migration to a single projects table or a join view; add file upload (decide local storage vs S3 vs DB blob).
+Phase 5C — Unify projects + evidence ✅ COMPLETE 2026-07-24
+
+5C-A — Single `projects` table (polymorphic author via 3 nullable FKs + CHECK constraint).
+`surface` enum (`INNOVATION` | `CLUB`) is derived server-side from the JWT role, never
+the request body — prevents a club member from impersonating INNOVATION to skip the
+admin ZSA approval. Club rows are gated by same-university; cross-uni reads return 404.
+
+5C-B — Local-filesystem evidence storage under `${user.home}/innovation-uploads`
+(was `/var/innovation/uploads`, which required sudo). 10 MB per file, 5 attachments per
+project (enforced under PESSIMISTIC_WRITE lock).
+
+Auth matrix for evidence (upload + list + download + delete):
+- INNOVATION rows: owner OR admin
+- CLUB rows:     owner OR leader-of-same-**university** OR admin
+- Anything else:  404 (privacy)
+
+Plan originally said "leader of same branch" — implementation is "leader of same
+university" because `ClubLeader` is university-scoped per the entity doc (one leader
+may oversee several branches). Documented in the `ClubAccessChecks.requireLeaderOfSameUniversityOrOwnerOrAdmin`
+javadoc.
+
+Verification: `mvn clean compile` ✅ · `npm run build` ✅ · both migrations ran cleanly
+on a populated DB ✅ · `curl GET /api/projects/1` returns the unified response shape ✅.

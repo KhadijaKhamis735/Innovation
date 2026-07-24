@@ -41,7 +41,10 @@ public class ProjectAttachmentController {
             @RequestPart(value = "kind", required = false) AttachmentKind kind,
             @RequestPart(value = "caption", required = false) String caption) {
         ProjectAttachmentResponse created = service.upload(id, file, kind, caption, currentEmail());
-        return ResponseEntity.status(HttpStatus.CREATED).body(created);
+        return ResponseEntity
+                .created(java.net.URI.create(
+                        "/api/projects/" + id + "/attachments/" + created.id()))
+                .body(created);
     }
 
     @GetMapping("/api/projects/{id}/attachments")

@@ -5,6 +5,9 @@ import com.example.Innovation_backend.club.ClubAccessChecks;
 import com.example.Innovation_backend.club.ClubMember;
 import com.example.Innovation_backend.club.ClubRepository;
 import com.example.Innovation_backend.club.MembershipStatus;
+import com.example.Innovation_backend.project.attachment.ProjectAttachment;
+import com.example.Innovation_backend.project.attachment.ProjectAttachmentRepository;
+import com.example.Innovation_backend.project.attachment.StorageProvider;
 import com.example.Innovation_backend.project.dto.MilestoneRequest;
 import com.example.Innovation_backend.project.dto.ProjectRequest;
 import com.example.Innovation_backend.project.dto.ProjectResponse;
@@ -13,6 +16,7 @@ import com.example.Innovation_backend.user.User;
 import com.example.Innovation_backend.user.UserRepository;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -40,12 +44,15 @@ import java.util.List;
  */
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class ProjectService {
 
     private final ProjectRepository projectRepo;
     private final UserRepository userRepo;
     private final ClubRepository clubRepo;
     private final ClubAccessChecks clubAccessChecks;
+    private final ProjectAttachmentRepository attachmentRepo;
+    private final StorageProvider storage;
 
     // ── Reads ────────────────────────────────────────────────────────
 
@@ -165,7 +172,31 @@ public class ProjectService {
     @Transactional
     public void delete(Long id, String email) {
         ProjectEntity p = loadOwned(id, email);
+
+        // Capture the storage paths of all attachments BEFORE we delete the
+        // project row — FK ON DELETE CASCADE removes the attachment rows in
+        // the same statement, so we have to read them first if we want to
+        // unlink the files on disk too.
+        List<String> pathsToUnlink = new ArrayList<>();
+        for (ProjectAttachment att : attachmentRepo.findAllByProjectIdOrderByUploadedAtDesc(id)) {
+            pathsToUnlink.add(att.getStoragePath());
+        }
+
         projectRepo.delete(p);
+
+        // Best-effort disk cleanup. We do this AFTER the project delete so
+        // any DB rollback leaves the files intact (the attachment rows
+        // still exist, pointing at them). On success, files that fail to
+        // unlink are logged and left as orphans — a future cleanup pass
+        // can reap them.
+        for (String path : pathsToUnlink) {
+            try {
+                storage.delete(path);
+            } catch (Exception e) {
+                log.warn("Project {} deleted but attachment file {} could not be removed: {}",
+                        id, path, e.getMessage());
+            }
+        }
     }
 
     @Transactional

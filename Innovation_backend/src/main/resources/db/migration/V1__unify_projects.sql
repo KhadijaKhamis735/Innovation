@@ -215,6 +215,15 @@ ALTER TABLE project_milestones
     ADD CONSTRAINT fk_milestone_project
         FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE;
 
+-- ── 5b. Defensive sequence reset ────────────────────────────────────
+-- Step 4 computes club-row ids as (max_innovation_id + ROW_NUMBER()). On a
+-- fresh DB with no innovator rows, max_innovation_id is 0, so the first
+-- club row gets id=1 — same as the serial sequence's default starting
+-- point. We then set the sequence to MAX(id) so future inserts go past it.
+-- Without this, a subsequent INSERT that relies on nextval() could collide.
+SELECT setval(pg_get_serial_sequence('projects', 'id'),
+              GREATEST((SELECT COALESCE(MAX(id), 1) FROM projects), 1));
+
 -- ── 7. Partial indexes (cheap reads on the public feed) ────────────
 CREATE INDEX idx_projects_innovation_approved
     ON projects (created_at DESC)
