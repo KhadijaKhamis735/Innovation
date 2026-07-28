@@ -2,6 +2,7 @@ package com.example.Innovation_backend.application;
 
 import com.example.Innovation_backend.application.dto.ApplicationRequest;
 import com.example.Innovation_backend.application.dto.ApplicationResponse;
+import com.example.Innovation_backend.auth.WriteGuard;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -25,12 +26,16 @@ import java.util.List;
  *
  * The acting user's email is read from SecurityContextHolder rather than
  * @AuthenticationPrincipal, which was unreliable in earlier phases.
+ *
+ * Phase 6B — apply is gated by {@link WriteGuard} so unverified innovators
+ * can't submit applications.
  */
 @RestController
 @RequiredArgsConstructor
 public class ApplicationController {
 
     private final ApplicationService applicationService;
+    private final WriteGuard writeGuard;
 
     /**
      * Apply to a specific opportunity. Path is nested under /api/opportunities
@@ -41,6 +46,7 @@ public class ApplicationController {
     public ResponseEntity<ApplicationResponse> apply(
             @PathVariable Long opportunityId,
             @Valid @RequestBody ApplicationRequest req) {
+        writeGuard.requireVerified();
         ApplicationResponse created = applicationService.apply(opportunityId, req, currentEmail());
         return ResponseEntity
                 .created(URI.create("/api/applications/" + created.id()))

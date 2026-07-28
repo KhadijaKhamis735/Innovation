@@ -103,4 +103,11 @@ public class ClubMember {
     @LastModifiedDate
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
+
+    // Phase 6B — self-registered members must verify their email before
+    // they can register for activities / post projects / etc. Seeded members
+    // (created by admin via POST /api/admin/clubs) are verified by default.
+    @Column(name = "email_verified", nullable = false)
+    @Builder.Default
+    private boolean emailVerified = true;
 }

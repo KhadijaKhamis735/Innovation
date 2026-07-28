@@ -6,30 +6,37 @@ import {
   ScrollView,
   TouchableOpacity,
   SafeAreaView,
+  StatusBar,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { colors } from '../styles/colors';
+
+const partners = ['Zanzibar Innovation Hub'];
 
 const features = [
   {
     icon: '🚀',
     title: 'Launch Your Ideas',
     desc: 'Create and manage innovation projects with structured tools. Track stages from Idea to MVP.',
+    accent: '#f97316',
   },
   {
     icon: '🤝',
     title: 'Connect with Funders',
     desc: 'Find partners, funding, and mentorship from approved funders.',
+    accent: '#7c3aed',
   },
   {
     icon: '📊',
     title: 'Track Your Progress',
     desc: 'Monitor applications, projects, and opportunities in a unified dashboard.',
+    accent: '#10b981',
   },
   {
     icon: '🎯',
     title: 'Smart Matching',
     desc: 'Our system helps connect your projects with the right opportunities.',
+    accent: '#0284c7',
   },
 ];
 
@@ -40,110 +47,325 @@ const steps = [
   { num: '4', title: 'Grow Together', desc: 'Track funding and achieve goals' },
 ];
 
-const stats = [
-  { value: '1,200+', label: 'Innovators' },
-  { value: '340+', label: 'Funders' },
-  { value: '850+', label: 'Projects' },
-  { value: '96%', label: 'Match Rate' },
+const whyItems = [
+  {
+    title: 'One account, three roles.',
+    desc: 'Innovator, Funder, or Club Member switch context in seconds.',
+  },
+  {
+    title: 'Real matching, not magic.',
+    desc: 'Our match engine looks at sector, stage, and funding size.',
+  },
+  {
+    title: 'Constitution grade clubs.',
+    desc: 'Treasury, IP, discipline, and elections all by the book.',
+  },
+];
+
+const bentoCards = [
+  {
+    icon: '🚀',
+    title: 'From idea to MVP',
+    desc: '5-stage project tracker with milestones, deliverables and feedback loops.',
+    variant: 'orange',
+  },
+  {
+    icon: '🪙',
+    title: 'Funding clarity',
+    desc: 'See every active call, deadline, and applicant in one tidy dashboard.',
+    variant: 'purple',
+  },
+  {
+    icon: '🏛️',
+    title: 'Real clubs',
+    desc: 'Run elections, meetings, treasury and discipline constitutionally.',
+    variant: 'green',
+  },
+  {
+    icon: '✨',
+    title: 'AI grant writer',
+    desc: 'Draft winning applications in minutes, tailored to each call.',
+    variant: 'dark',
+    badge: 'Coming soon',
+  },
 ];
 
 export default function LandingScreen({ navigation }) {
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView showsVerticalScrollIndicator={false}>
-        {/* Hero Section */}
-        <LinearGradient
-          colors={['#fff8f0', '#ffffff', '#fff5eb']}
-          style={styles.hero}
-        >
+      <StatusBar barStyle="dark-content" backgroundColor="#fff8f0" />
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+        scrollEnabled={true}
+        nestedScrollEnabled={true}
+      >
+        {/* ============ HERO ============ */}
+        <View style={styles.hero}>
           {/* Decorative blobs */}
-          <View style={[styles.blob, styles.blob1]} />
-          <View style={[styles.blob, styles.blob2]} />
-          <View style={[styles.blob, styles.blob3]} />
+          <View pointerEvents="none" style={[styles.heroBlob, styles.heroBlob1]} />
+          <View pointerEvents="none" style={[styles.heroBlob, styles.heroBlob2]} />
+          <View pointerEvents="none" style={[styles.heroBlob, styles.heroBlob3]} />
 
-          <View style={styles.heroContent}>
-            <View style={styles.heroBadge}>
-              <View style={styles.badgeDot} />
-              <Text style={styles.heroBadgeText}>Innovation Management System</Text>
-            </View>
+          <View style={styles.heroInner}>
+            <View style={styles.heroText}>
+              <View style={styles.heroBadge}>
+                <View style={styles.badgeDot} />
+                <Text style={styles.heroBadgeText}>Innovation Management System</Text>
+              </View>
 
-            <Text style={styles.heroTitle}>
-              Where Ideas Meet{' '}
-              <Text style={styles.heroGradient}>Opportunity</Text>
-            </Text>
+              <Text style={styles.heroTitle}>
+                Where Ideas Meet{' '}
+                <Text style={styles.heroGradient}>Opportunity</Text>
+              </Text>
 
-            <Text style={styles.heroDesc}>
-              The unified platform bridging innovators and funders submit projects, discover funding opportunities, and track every step of your innovation journey.
-            </Text>
+              <Text style={styles.heroDesc}>
+                The unified platform bridging innovators, funders, and student-led
+                innovation clubs. Submit projects, discover funding opportunities,
+                run your club, and grow your innovation journey — all in one place.
+              </Text>
 
-            <View style={styles.heroButtons}>
+              <View style={styles.heroButtons}>
+                <TouchableOpacity
+                  style={styles.btnPrimary}
+                  onPress={() => navigation.navigate('Register', { role: 'innovator' })}
+                >
+                  <Text style={styles.btnPrimaryText}>Join as Innovator</Text>
+                  <Text style={styles.btnPrimaryArrow}>→</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.btnSecondary}
+                  onPress={() => navigation.navigate('Register', { role: 'funder' })}
+                >
+                  <Text style={styles.btnSecondaryText}>Register as Funder</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Club Management entry — mirrors web hero-club-entry */}
               <TouchableOpacity
-                style={styles.btnPrimary}
-                onPress={() => navigation.navigate('Register', { role: 'innovator' })}
+                style={styles.heroClubEntry}
+                onPress={() => navigation.navigate('Login')}
               >
-                <Text style={styles.btnPrimaryText}>Join as Innovator</Text>
-                <Text style={styles.btnPrimaryArrow}>→</Text>
+                <View style={styles.heroClubEntryIcon}>
+                  <Text style={styles.heroClubEntryEmoji}>🎓</Text>
+                </View>
+                <View style={styles.heroClubEntryText}>
+                  <Text style={styles.heroClubEntryTitle}>Club Management</Text>
+                  <Text style={styles.heroClubEntrySub}>
+                    Sign in as a Club Member or Club Leader (Mlezi)
+                  </Text>
+                </View>
+                <Text style={styles.heroClubEntryArrow}>→</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity
-                style={styles.btnSecondary}
-                onPress={() => navigation.navigate('Register', { role: 'funder' })}
-              >
-                <Text style={styles.btnSecondaryText}>Register as Funder</Text>
-              </TouchableOpacity>
+              <Text style={styles.heroNote}>
+                Funders require{' '}
+                <Text style={styles.heroNoteHighlight}>admin approval</Text> before
+                posting funding opportunities
+              </Text>
             </View>
 
-            <Text style={styles.heroNote}>
-              Funders require <Text style={styles.heroNoteHighlight}>admin approval</Text> before posting funding opportunities
-            </Text>
+            {/* Visual showcase */}
+            <View pointerEvents="box-none" style={styles.heroVisual}>
+              <View style={styles.heroVisualMain}>
+                <LinearGradient
+                  colors={['#fff8f0', '#fff5eb']}
+                  style={styles.heroVisualPanel}
+                >
+                  <Text style={styles.heroVisualEmoji}>⚡</Text>
+                  <Text style={styles.heroVisualTitle}>Innovation</Text>
+                  <Text style={styles.heroVisualSub}>Management System</Text>
+                </LinearGradient>
+              </View>
+
+              <View style={[styles.heroFloat, styles.heroFloat1]}>
+                <View style={[styles.heroFloatIcon, { backgroundColor: '#e0f2fe' }]}>
+                  <Text style={{ fontSize: 18 }}>🎓</Text>
+                </View>
+                <View>
+                  <Text style={styles.heroFloatTitle}>New Grant</Text>
+                  <Text style={styles.heroFloatSub}>UNDP Tanzania · $5,000</Text>
+                </View>
+              </View>
+
+              <View style={[styles.heroFloat, styles.heroFloat2]}>
+                <View style={[styles.heroFloatIcon, { backgroundColor: '#f3e8ff' }]}>
+                  <Text style={{ fontSize: 18 }}>🤝</Text>
+                </View>
+                <View>
+                  <Text style={styles.heroFloatTitle}>+12 Innovators</Text>
+                  <Text style={styles.heroFloatSub}>joined this week</Text>
+                </View>
+              </View>
+
+              <View style={[styles.heroFloat, styles.heroFloat3]}>
+                <View style={[styles.heroFloatIcon, { backgroundColor: '#dcfce7' }]}>
+                  <Text style={[styles.heroFloatTick, { color: '#16a34a' }]}>✓</Text>
+                </View>
+                <View>
+                  <Text style={styles.heroFloatTitle}>Application sent</Text>
+                  <Text style={styles.heroFloatSub}>Blue Economy Fund</Text>
+                </View>
+              </View>
+            </View>
           </View>
-        </LinearGradient>
+        </View>
 
-        {/* Stats Section */}
+        {/* ============ PARTNERS STRIP ============ */}
+        <View style={styles.partnersStrip}>
+          <Text style={styles.partnersLabel}>
+            Trusted by leading organizations across East Africa
+          </Text>
+          <View style={styles.partnersTrack}>
+            {partners.map((p, i) => (
+              <Text key={i} style={styles.partnersChip}>
+                {p}
+              </Text>
+            ))}
+          </View>
+        </View>
+
+        {/* ============ STATS BAR ============ */}
         <LinearGradient
           colors={['#1a1a2e', '#2d1f0f']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={styles.statsBar}
         >
-          {stats.map((stat, index) => (
-            <View key={index} style={styles.statItem}>
-              <Text style={styles.statValue}>{stat.value}</Text>
-              <Text style={styles.statLabel}>{stat.label}</Text>
-            </View>
-          ))}
+          <Text style={styles.statsMessage}>
+            Real numbers — coming once your community grows
+          </Text>
         </LinearGradient>
 
-        {/* Features Section */}
-        <View style={styles.featuresContainer}>
+        {/* ============ FEATURES ============ */}
+        <View style={styles.features}>
           <View style={styles.sectionTag}>
             <Text style={styles.sectionTagText}>Features</Text>
           </View>
           <Text style={styles.sectionTitle}>Everything You Need</Text>
           <Text style={styles.sectionSub}>
-            Built for innovators and funders to collaborate seamlessly
+            Built for innovators, funders, and student innovation clubs to collaborate
+            seamlessly
           </Text>
 
           <View style={styles.featuresGrid}>
             {features.map((feature, index) => (
               <View key={index} style={styles.featureCard}>
-                <LinearGradient
-                  colors={['#fff8f0', '#fff5eb']}
-                  style={styles.featureIcon}
+                <View
+                  style={[
+                    styles.featureIconWrap,
+                    { backgroundColor: hexWithAlpha(feature.accent, 0.12) },
+                  ]}
                 >
                   <Text style={styles.featureIconText}>{feature.icon}</Text>
-                </LinearGradient>
+                </View>
                 <Text style={styles.featureTitle}>{feature.title}</Text>
                 <Text style={styles.featureDesc}>{feature.desc}</Text>
+                <Text
+                  style={[styles.featureArrow, { color: feature.accent }]}
+                >
+                  Learn more →
+                </Text>
               </View>
             ))}
           </View>
         </View>
 
-        {/* How It Works Section */}
+        {/* ============ WHY US (BENTO) ============ */}
         <LinearGradient
           colors={['#fff8f0', '#ffffff']}
-          style={styles.howItWorksContainer}
+          style={styles.whySection}
+        >
+          <View style={styles.whyInner}>
+            <View style={styles.whyText}>
+              <View style={[styles.sectionTag, styles.sectionTagLight]}>
+                <Text style={[styles.sectionTagText, styles.sectionTagTextLight]}>
+                  Why Choose Us
+                </Text>
+              </View>
+              <Text style={styles.whyTitle}>
+                Built for the way{' '}
+                <Text style={styles.whyTitleAccent}>innovation actually works</Text>
+              </Text>
+              <Text style={styles.whyDesc}>
+                We didn't build another generic project board. We built it for the
+                way real innovators move from idea to funded MVP with a club backbone
+                that keeps student teams accountable.
+              </Text>
+
+              <View style={styles.whyList}>
+                {whyItems.map((item, index) => (
+                  <View key={index} style={styles.whyListItem}>
+                    <LinearGradient
+                      colors={[colors.primary, colors.primaryDark]}
+                      style={styles.whyCheck}
+                    >
+                      <Text style={styles.whyCheckText}>✓</Text>
+                    </LinearGradient>
+                    <View style={styles.whyListText}>
+                      <Text style={styles.whyListTitle}>{item.title}</Text>
+                      <Text style={styles.whyListSub}>{item.desc}</Text>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            </View>
+
+            <View style={styles.whyBento}>
+              {bentoCards.map((card, index) => (
+                <View
+                  key={index}
+                  style={[
+                    styles.bentoCard,
+                    card.variant === 'orange' && styles.bentoCardOrange,
+                    card.variant === 'purple' && styles.bentoCardPurple,
+                    card.variant === 'green' && styles.bentoCardGreen,
+                    card.variant === 'dark' && styles.bentoCardDark,
+                  ]}
+                >
+                  {card.badge && (
+                    <View style={styles.bentoCardTag}>
+                      <Text style={styles.bentoCardTagText}>{card.badge}</Text>
+                    </View>
+                  )}
+                  <View
+                    style={[
+                      styles.bentoCardIcon,
+                      card.variant === 'orange' && styles.bentoCardIconOrange,
+                      card.variant === 'purple' && styles.bentoCardIconPurple,
+                      card.variant === 'green' && styles.bentoCardIconGreen,
+                      card.variant === 'dark' && styles.bentoCardIconDark,
+                    ]}
+                  >
+                    <Text style={styles.bentoCardIconText}>{card.icon}</Text>
+                  </View>
+                  <Text
+                    style={[
+                      styles.bentoCardTitle,
+                      card.variant === 'dark' && styles.bentoCardTitleDark,
+                    ]}
+                  >
+                    {card.title}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.bentoCardDesc,
+                      card.variant === 'dark' && styles.bentoCardDescDark,
+                    ]}
+                  >
+                    {card.desc}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        </LinearGradient>
+
+        {/* ============ HOW IT WORKS ============ */}
+        <LinearGradient
+          colors={['#ffffff', '#fff8f0']}
+          style={styles.howItWorks}
         >
           <View style={styles.sectionTag}>
             <Text style={styles.sectionTagText}>Process</Text>
@@ -152,7 +374,7 @@ export default function LandingScreen({ navigation }) {
           <Text style={styles.sectionSub}>Get started in four simple steps</Text>
 
           <View style={styles.stepsContainer}>
-            {steps.map((step, index) => (
+            {steps.map((step) => (
               <View key={step.num} style={styles.stepCard}>
                 <LinearGradient
                   colors={[colors.primary, colors.primaryDark]}
@@ -162,63 +384,89 @@ export default function LandingScreen({ navigation }) {
                 </LinearGradient>
                 <Text style={styles.stepTitle}>{step.title}</Text>
                 <Text style={styles.stepDesc}>{step.desc}</Text>
-                {index < steps.length - 1 && (
-                  <Text style={styles.stepArrow}>→</Text>
-                )}
               </View>
             ))}
           </View>
         </LinearGradient>
 
-        {/* CTA Section */}
-        <View style={styles.ctaContainer}>
+        {/* ============ CTA ============ */}
+        <View style={styles.cta}>
           <LinearGradient
             colors={['#1a1a2e', '#2d1f0f']}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={styles.ctaGradient}
           >
-            <Text style={styles.ctaTitle}>
-              Ready to <Text style={styles.ctaHighlight}>Transform</Text> Your Ideas?
-            </Text>
-            <Text style={styles.ctaSub}>
-              Join hundreds of innovators and funders already making an impact.
-            </Text>
-            <TouchableOpacity
-              style={styles.ctaBtn}
-              onPress={() => navigation.navigate('Register')}
-            >
-              <Text style={styles.ctaBtnText}>Create Free Account</Text>
-              <Text style={styles.ctaBtnArrow}>→</Text>
-            </TouchableOpacity>
+            {/* Decorative shapes */}
+            <View pointerEvents="none" style={[styles.ctaShape, styles.ctaShape1]} />
+            <View pointerEvents="none" style={[styles.ctaShape, styles.ctaShape2]} />
+
+            <View style={styles.ctaContent}>
+              <Text style={styles.ctaEyebrow}>Ready when you are</Text>
+              <Text style={styles.ctaTitle}>
+                Ready to <Text style={styles.ctaHighlight}>Transform</Text> Your Ideas?
+              </Text>
+              <Text style={styles.ctaSub}>
+                Sign up to start posting projects or funding opportunities.
+              </Text>
+              <View style={styles.ctaButtons}>
+                <TouchableOpacity
+                  style={styles.ctaBtn}
+                  onPress={() => navigation.navigate('Register')}
+                >
+                  <Text style={styles.ctaBtnText}>Create Free Account</Text>
+                  <Text style={styles.ctaBtnArrow}>→</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.ctaBtnGhost}
+                  onPress={() => navigation.navigate('Login')}
+                >
+                  <Text style={styles.ctaBtnGhostText}>Browse Opportunities</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
           </LinearGradient>
         </View>
 
-        {/* Footer */}
+        {/* ============ FOOTER ============ */}
         <View style={styles.footer}>
-          <View style={styles.footerLogo}>
+          <View style={styles.footerBrand}>
             <LinearGradient
               colors={[colors.primary, colors.primaryDark]}
               style={styles.footerLogoIcon}
             >
               <Text style={styles.footerLogoIconText}>⚡</Text>
             </LinearGradient>
-            <Text style={styles.footerLogoName}>Innovation Management System</Text>
+            <View>
+              <Text style={styles.footerBrandTitle}>Innovation Management System</Text>
+              <Text style={styles.footerBrandSub}>
+                Empowering the next generation of innovators.
+              </Text>
+            </View>
           </View>
 
-          <View style={styles.footerLinks}>
-            <TouchableOpacity>
-              <Text style={styles.footerLink}>Features</Text>
-            </TouchableOpacity>
-            <TouchableOpacity>
-              <Text style={styles.footerLink}>How It Works</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => navigation.navigate('Login')}>
-              <Text style={styles.footerLink}>Login</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => navigation.navigate('Register')}>
-              <Text style={styles.footerLink}>Register</Text>
-            </TouchableOpacity>
+          <View style={styles.footerCols}>
+            <View style={styles.footerCol}>
+              <Text style={styles.footerColTitle}>Platform</Text>
+              <TouchableOpacity>
+                <Text style={styles.footerLink}>Features</Text>
+              </TouchableOpacity>
+              <TouchableOpacity>
+                <Text style={styles.footerLink}>How It Works</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => navigation.navigate('Login')}>
+                <Text style={styles.footerLink}>Login</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={styles.footerCol}>
+              <Text style={styles.footerColTitle}>Account</Text>
+              <TouchableOpacity onPress={() => navigation.navigate('Register')}>
+                <Text style={styles.footerLink}>Innovation Register</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => navigation.navigate('Register')}>
+                <Text style={styles.footerLink}>Club Register</Text>
+              </TouchableOpacity>
+            </View>
           </View>
 
           <Text style={styles.footerText}>
@@ -230,58 +478,75 @@ export default function LandingScreen({ navigation }) {
   );
 }
 
+/* Tiny helper: turn "#f97316" into "rgba(249, 115, 22, 0.12)" without pulling
+   in a color library — used for translucent feature-icon backgrounds. */
+function hexWithAlpha(hex, alpha) {
+  const h = hex.replace('#', '');
+  const r = parseInt(h.substring(0, 2), 16);
+  const g = parseInt(h.substring(2, 4), 16);
+  const b = parseInt(h.substring(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.white,
   },
 
-  /* Hero */
+  scrollContent: {
+    flexGrow: 1,
+    paddingBottom: 24,
+  },
+
+  /* ===== Hero ===== */
   hero: {
-    paddingTop: 60,
-    paddingBottom: 80,
-    paddingHorizontal: 24,
-    alignItems: 'center',
+    paddingTop: 40,
+    paddingBottom: 64,
+    paddingHorizontal: 20,
+    backgroundColor: '#fff8f0',
     position: 'relative',
     overflow: 'hidden',
   },
-  blob: {
+  heroBlob: {
     position: 'absolute',
-    borderRadius: 250,
+    borderRadius: 260,
     opacity: 0.6,
   },
-  blob1: {
+  heroBlob1: {
     width: 320,
     height: 320,
-    backgroundColor: 'rgba(249, 115, 22, 0.12)',
-    top: -80,
+    backgroundColor: 'rgba(249, 115, 22, 0.18)',
+    top: -100,
     right: -100,
   },
-  blob2: {
+  heroBlob2: {
     width: 260,
     height: 260,
-    backgroundColor: 'rgba(234, 88, 12, 0.1)',
-    bottom: -50,
+    backgroundColor: 'rgba(234, 88, 12, 0.12)',
+    bottom: -80,
     left: -80,
   },
-  blob3: {
+  heroBlob3: {
     width: 200,
     height: 200,
-    backgroundColor: 'rgba(251, 146, 60, 0.08)',
-    top: '40%',
-    left: '10%',
+    backgroundColor: 'rgba(124, 58, 237, 0.10)',
+    top: '45%',
+    left: '5%',
   },
-  heroContent: {
-    maxWidth: 360,
-    alignItems: 'center',
+  heroInner: {
+    position: 'relative',
     zIndex: 1,
+  },
+  heroText: {
+    alignItems: 'center',
   },
   heroBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.primaryLight,
+    backgroundColor: 'rgba(249, 115, 22, 0.10)',
     borderWidth: 1,
-    borderColor: 'rgba(249, 115, 22, 0.2)',
+    borderColor: 'rgba(249, 115, 22, 0.20)',
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 999,
@@ -302,12 +567,13 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   heroTitle: {
-    fontSize: 36,
+    fontSize: 34,
     fontWeight: '800',
     textAlign: 'center',
-    color: colors.textPrimary,
+    color: '#0f172a',
     marginBottom: 20,
-    lineHeight: 42,
+    lineHeight: 40,
+    letterSpacing: -0.5,
   },
   heroGradient: {
     color: colors.primary,
@@ -315,15 +581,15 @@ const styles = StyleSheet.create({
   heroDesc: {
     fontSize: 15,
     textAlign: 'center',
-    color: colors.textSecondary,
+    color: '#475569',
     lineHeight: 24,
-    marginBottom: 36,
-    maxWidth: 320,
+    marginBottom: 32,
+    maxWidth: 360,
   },
   heroButtons: {
     width: '100%',
     gap: 12,
-    marginBottom: 16,
+    marginBottom: 24,
   },
   btnPrimary: {
     flexDirection: 'row',
@@ -334,7 +600,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#f97316',
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.35,
     shadowRadius: 14,
     elevation: 4,
@@ -353,16 +619,64 @@ const styles = StyleSheet.create({
   btnSecondary: {
     backgroundColor: colors.white,
     borderWidth: 2,
-    borderColor: 'rgba(249, 115, 22, 0.3)',
+    borderColor: 'rgba(249, 115, 22, 0.30)',
     paddingVertical: 12,
     paddingHorizontal: 28,
     borderRadius: 12,
     alignItems: 'center',
   },
   btnSecondaryText: {
-    color: colors.textPrimary,
+    color: '#0f172a',
     fontSize: 15,
     fontWeight: '600',
+  },
+  heroClubEntry: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.85)',
+    borderWidth: 1,
+    borderColor: 'rgba(124, 58, 237, 0.25)',
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 14,
+    width: '100%',
+    marginBottom: 16,
+    shadowColor: '#7c3aed',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.10,
+    shadowRadius: 12,
+    elevation: 2,
+  },
+  heroClubEntryIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: '#f3e8ff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  heroClubEntryEmoji: {
+    fontSize: 22,
+  },
+  heroClubEntryText: {
+    flex: 1,
+  },
+  heroClubEntryTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#0f172a',
+  },
+  heroClubEntrySub: {
+    fontSize: 12,
+    color: '#64748b',
+    marginTop: 2,
+  },
+  heroClubEntryArrow: {
+    color: '#7c3aed',
+    fontSize: 16,
+    fontWeight: '700',
+    marginLeft: 8,
   },
   heroNote: {
     fontSize: 12,
@@ -375,34 +689,146 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 
-  /* Stats */
-  statsBar: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    paddingVertical: 48,
-    paddingHorizontal: 20,
-  },
-  statItem: {
-    width: '50%',
+  /* Hero visual showcase */
+  heroVisual: {
+    marginTop: 40,
+    minHeight: 280,
     alignItems: 'center',
-    marginBottom: 20,
+    justifyContent: 'center',
+    position: 'relative',
   },
-  statValue: {
-    fontSize: 28,
+  heroVisualMain: {
+    width: 220,
+    height: 220,
+    borderRadius: 22,
+    overflow: 'hidden',
+    shadowColor: '#f97316',
+    shadowOffset: { width: 0, height: 14 },
+    shadowOpacity: 0.20,
+    shadowRadius: 30,
+    elevation: 6,
+  },
+  heroVisualPanel: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  heroVisualEmoji: {
+    fontSize: 64,
+    marginBottom: 8,
+  },
+  heroVisualTitle: {
+    fontSize: 20,
     fontWeight: '800',
-    color: colors.white,
-    marginBottom: 4,
+    color: colors.primaryDark,
   },
-  statLabel: {
-    fontSize: 13,
-    color: colors.textMuted,
-    fontWeight: '500',
+  heroVisualSub: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.textSecondary,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+    marginTop: 4,
+  },
+  heroFloat: {
+    position: 'absolute',
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.white,
+    borderRadius: 14,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    shadowColor: '#0f172a',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    elevation: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 0, 0, 0.04)',
+  },
+  heroFloatIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 8,
+  },
+  heroFloatTick: {
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  heroFloatTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#0f172a',
+  },
+  heroFloatSub: {
+    fontSize: 10,
+    color: '#64748b',
+    marginTop: 1,
+  },
+  heroFloat1: {
+    top: 8,
+    left: 8,
+  },
+  heroFloat2: {
+    top: 60,
+    right: 0,
+  },
+  heroFloat3: {
+    bottom: 12,
+    left: 16,
   },
 
-  /* Section shared */
+  /* ===== Partners strip ===== */
+  partnersStrip: {
+    backgroundColor: colors.white,
+    paddingVertical: 28,
+    paddingHorizontal: 24,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0, 0, 0, 0.05)',
+    alignItems: 'center',
+  },
+  partnersLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 1.8,
+    textTransform: 'uppercase',
+    color: colors.textMuted,
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  partnersTrack: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 24,
+  },
+  partnersChip: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#475569',
+    opacity: 0.7,
+  },
+
+  /* ===== Stats Bar ===== */
+  statsBar: {
+    paddingVertical: 48,
+    paddingHorizontal: 24,
+    alignItems: 'center',
+  },
+  statsMessage: {
+    color: colors.textMuted,
+    fontSize: 14,
+    fontStyle: 'italic',
+    textAlign: 'center',
+  },
+
+  /* ===== Section Tags & Titles ===== */
   sectionTag: {
     alignSelf: 'center',
-    backgroundColor: colors.primaryLight,
+    backgroundColor: 'rgba(249, 115, 22, 0.10)',
     paddingHorizontal: 14,
     paddingVertical: 6,
     borderRadius: 999,
@@ -415,24 +841,33 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
     textTransform: 'uppercase',
   },
+  sectionTagLight: {
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(249, 115, 22, 0.20)',
+  },
+  sectionTagTextLight: {
+    color: '#fdba74',
+  },
   sectionTitle: {
     fontSize: 26,
     fontWeight: '800',
-    color: colors.textPrimary,
+    color: '#0f172a',
     textAlign: 'center',
     marginBottom: 10,
+    letterSpacing: -0.4,
+    lineHeight: 32,
   },
   sectionSub: {
     fontSize: 15,
-    color: colors.textSecondary,
+    color: '#64748b',
     textAlign: 'center',
     marginBottom: 36,
     paddingHorizontal: 16,
     lineHeight: 22,
   },
 
-  /* Features */
-  featuresContainer: {
+  /* ===== Features ===== */
+  features: {
     paddingVertical: 64,
     paddingHorizontal: 20,
     backgroundColor: colors.white,
@@ -448,35 +883,190 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     borderWidth: 1,
     borderColor: 'rgba(0, 0, 0, 0.06)',
-    padding: 20,
-    marginBottom: 16,
+    padding: 18,
+    marginBottom: 14,
     alignItems: 'flex-start',
   },
-  featureIcon: {
-    width: 52,
-    height: 52,
-    borderRadius: 14,
+  featureIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 16,
+    marginBottom: 12,
   },
   featureIconText: {
-    fontSize: 24,
+    fontSize: 22,
   },
   featureTitle: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '700',
-    color: colors.textPrimary,
-    marginBottom: 8,
+    color: '#0f172a',
+    marginBottom: 6,
   },
   featureDesc: {
-    fontSize: 13,
-    color: colors.textSecondary,
-    lineHeight: 19,
+    fontSize: 12,
+    color: '#64748b',
+    lineHeight: 17,
+    marginBottom: 10,
+  },
+  featureArrow: {
+    fontSize: 12,
+    fontWeight: '700',
   },
 
-  /* How It Works */
-  howItWorksContainer: {
+  /* ===== Why section ===== */
+  whySection: {
+    paddingVertical: 64,
+    paddingHorizontal: 20,
+  },
+  whyInner: {
+    width: '100%',
+  },
+  whyText: {
+    marginBottom: 32,
+  },
+  whyTitle: {
+    fontSize: 26,
+    fontWeight: '800',
+    color: '#0f172a',
+    marginBottom: 14,
+    lineHeight: 32,
+    letterSpacing: -0.4,
+  },
+  whyTitleAccent: {
+    color: colors.primary,
+  },
+  whyDesc: {
+    fontSize: 15,
+    color: '#475569',
+    lineHeight: 23,
+    marginBottom: 22,
+  },
+  whyList: {
+    gap: 16,
+  },
+  whyListItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  whyCheck: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+    marginTop: 2,
+  },
+  whyCheckText: {
+    color: colors.white,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  whyListText: {
+    flex: 1,
+  },
+  whyListTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#0f172a',
+  },
+  whyListSub: {
+    fontSize: 12,
+    color: '#64748b',
+    marginTop: 2,
+    lineHeight: 17,
+  },
+  whyBento: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+  },
+  bentoCard: {
+    width: '48%',
+    borderRadius: 18,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 0, 0, 0.06)',
+    minHeight: 150,
+    justifyContent: 'flex-start',
+  },
+  bentoCardOrange: {
+    backgroundColor: '#fff8f0',
+    borderColor: 'rgba(249, 115, 22, 0.15)',
+  },
+  bentoCardPurple: {
+    backgroundColor: '#faf5ff',
+    borderColor: 'rgba(124, 58, 237, 0.15)',
+  },
+  bentoCardGreen: {
+    backgroundColor: '#ecfdf5',
+    borderColor: 'rgba(16, 185, 129, 0.15)',
+  },
+  bentoCardDark: {
+    backgroundColor: '#0f172a',
+    borderColor: 'transparent',
+  },
+  bentoCardTag: {
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(249, 115, 22, 0.20)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
+    marginBottom: 8,
+  },
+  bentoCardTagText: {
+    fontSize: 9,
+    fontWeight: '700',
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+    color: '#fb923c',
+  },
+  bentoCardIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
+  },
+  bentoCardIconOrange: {
+    backgroundColor: 'rgba(249, 115, 22, 0.15)',
+  },
+  bentoCardIconPurple: {
+    backgroundColor: 'rgba(124, 58, 237, 0.15)',
+  },
+  bentoCardIconGreen: {
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+  },
+  bentoCardIconDark: {
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  bentoCardIconText: {
+    fontSize: 18,
+  },
+  bentoCardTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#0f172a',
+    marginBottom: 4,
+  },
+  bentoCardTitleDark: {
+    color: colors.white,
+  },
+  bentoCardDesc: {
+    fontSize: 12,
+    color: '#475569',
+    lineHeight: 16,
+  },
+  bentoCardDescDark: {
+    color: '#94a3b8',
+  },
+
+  /* ===== How it works ===== */
+  howItWorks: {
     paddingVertical: 64,
     paddingHorizontal: 20,
   },
@@ -484,56 +1074,51 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
-    marginTop: 8,
   },
   stepCard: {
     width: '48%',
     alignItems: 'center',
-    marginBottom: 32,
-    position: 'relative',
+    marginBottom: 24,
+    backgroundColor: colors.white,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 0, 0, 0.06)',
+    padding: 18,
   },
   stepNumber: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 16,
+    marginBottom: 12,
     shadowColor: '#f97316',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.30,
     shadowRadius: 14,
     elevation: 4,
   },
   stepNumberText: {
     color: colors.white,
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '800',
   },
   stepTitle: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '700',
-    color: colors.textPrimary,
-    marginBottom: 6,
+    color: '#0f172a',
+    marginBottom: 4,
     textAlign: 'center',
   },
   stepDesc: {
-    fontSize: 12,
-    color: colors.textSecondary,
+    fontSize: 11,
+    color: '#64748b',
     textAlign: 'center',
-    lineHeight: 17,
-  },
-  stepArrow: {
-    position: 'absolute',
-    top: 12,
-    right: -14,
-    color: colors.primary,
-    fontSize: 18,
-    opacity: 0.5,
+    lineHeight: 15,
   },
 
-  /* CTA */
-  ctaContainer: {
+  /* ===== CTA ===== */
+  cta: {
     paddingHorizontal: 0,
     paddingVertical: 0,
   },
@@ -541,6 +1126,39 @@ const styles = StyleSheet.create({
     paddingVertical: 64,
     paddingHorizontal: 24,
     alignItems: 'center',
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  ctaShape: {
+    position: 'absolute',
+    borderRadius: 200,
+  },
+  ctaShape1: {
+    width: 240,
+    height: 240,
+    backgroundColor: 'rgba(249, 115, 22, 0.18)',
+    top: -60,
+    left: -60,
+  },
+  ctaShape2: {
+    width: 180,
+    height: 180,
+    backgroundColor: 'rgba(124, 58, 237, 0.15)',
+    bottom: -50,
+    right: -40,
+  },
+  ctaContent: {
+    alignItems: 'center',
+    position: 'relative',
+    zIndex: 1,
+  },
+  ctaEyebrow: {
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 1.8,
+    color: '#fb923c',
+    marginBottom: 12,
   },
   ctaTitle: {
     fontSize: 26,
@@ -548,58 +1166,73 @@ const styles = StyleSheet.create({
     color: colors.white,
     textAlign: 'center',
     marginBottom: 14,
-    lineHeight: 34,
+    lineHeight: 32,
+    letterSpacing: -0.4,
   },
   ctaHighlight: {
     color: colors.primary,
   },
   ctaSub: {
-    fontSize: 15,
-    color: colors.textMuted,
+    fontSize: 14,
+    color: '#cbd5e1',
     textAlign: 'center',
-    marginBottom: 32,
+    marginBottom: 28,
     maxWidth: 320,
-    lineHeight: 22,
+    lineHeight: 21,
+  },
+  ctaButtons: {
+    width: '100%',
+    gap: 12,
   },
   ctaBtn: {
     flexDirection: 'row',
     backgroundColor: colors.primary,
-    paddingVertical: 16,
-    paddingHorizontal: 36,
+    paddingVertical: 14,
+    paddingHorizontal: 28,
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#f97316',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.45,
+    shadowRadius: 16,
     elevation: 4,
   },
   ctaBtnText: {
     color: colors.white,
     fontSize: 15,
     fontWeight: '700',
-    marginRight: 10,
+    marginRight: 8,
   },
   ctaBtnArrow: {
     color: colors.white,
-    fontSize: 18,
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  ctaBtnGhost: {
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+    paddingVertical: 12,
+    paddingHorizontal: 28,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  ctaBtnGhostText: {
+    color: colors.white,
+    fontSize: 15,
     fontWeight: '700',
   },
 
-  /* Footer */
+  /* ===== Footer ===== */
   footer: {
-    backgroundColor: '#1a1a2e',
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.05)',
+    backgroundColor: '#0a0f1c',
     paddingVertical: 40,
     paddingHorizontal: 24,
-    alignItems: 'center',
   },
-  footerLogo: {
+  footerBrand: {
     flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 20,
+    alignItems: 'flex-start',
+    marginBottom: 28,
   },
   footerLogoIcon: {
     width: 36,
@@ -611,27 +1244,46 @@ const styles = StyleSheet.create({
   },
   footerLogoIconText: {
     color: colors.white,
-    fontSize: 18,
+    fontSize: 16,
   },
-  footerLogoName: {
+  footerBrandTitle: {
     color: colors.white,
-    fontWeight: '700',
     fontSize: 15,
+    fontWeight: '700',
   },
-  footerLinks: {
+  footerBrandSub: {
+    color: '#94a3b8',
+    fontSize: 12,
+    marginTop: 4,
+    lineHeight: 16,
+    maxWidth: 220,
+  },
+  footerCols: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    gap: 24,
-    marginBottom: 16,
+    gap: 48,
+    marginBottom: 28,
+  },
+  footerCol: {
+    gap: 8,
+  },
+  footerColTitle: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+    color: '#cbd5e1',
+    marginBottom: 4,
   },
   footerLink: {
-    color: colors.textMuted,
-    fontSize: 14,
+    color: '#94a3b8',
+    fontSize: 13,
   },
   footerText: {
-    color: colors.textMuted,
-    fontSize: 13,
+    color: '#475569',
+    fontSize: 12,
     textAlign: 'center',
+    paddingTop: 20,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.05)',
   },
 });

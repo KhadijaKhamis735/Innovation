@@ -4,6 +4,7 @@
     "slug": "InnovationMobile",
     "version": "1.0.0",
     "orientation": "portrait",
+    "scheme": "innovationmobile",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "ios": {

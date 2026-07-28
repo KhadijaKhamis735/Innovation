@@ -13,8 +13,10 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { colors } from '../styles/colors';
+import { useAuth } from '../context/AuthContext';
 
 export default function RegisterScreen({ navigation }) {
+  const { signUp } = useAuth();
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
@@ -32,7 +34,7 @@ export default function RegisterScreen({ navigation }) {
     { text: 'Contains a number', met: /\d/.test(password) },
   ];
 
-  const handleRegister = () => {
+  const handleRegister = async () => {
     if (!firstName || !lastName || !email || !password) {
       setError('Please fill all required fields.');
       return;
@@ -47,14 +49,28 @@ export default function RegisterScreen({ navigation }) {
     }
     setError('');
     setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
-      if (role === 'funder') {
+    try {
+      const payload = {
+        email: email.trim(),
+        password,
+        role,
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+      };
+      if (role === 'funder' && sector.trim()) {
+        payload.sector = sector.trim();
+      }
+      const created = await signUp(payload);
+      if (created?.role === 'funder') {
         navigation.replace('FunderDashboard');
       } else {
         navigation.replace('Dashboard');
       }
-    }, 900);
+    } catch (e) {
+      setError(e?.message || 'Could not create your account. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (

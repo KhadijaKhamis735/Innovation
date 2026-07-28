@@ -46,7 +46,18 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ApiError> handleAccessDenied(AccessDeniedException ex, HttpServletRequest req) {
-        ApiError body = ApiError.of(403, "Forbidden", "You do not have permission for this action", req.getRequestURI());
+        // Surface the actual cause. Many services throw AccessDeniedException
+        // with a specific, user-facing message (e.g. "Your organization is not
+        // approved yet", "Please verify your email before performing this
+        // action"). Discarding it in favor of a generic string hides the
+        // real reason from the user — they can't tell whether to wait for
+        // admin approval, verify their email, or fix something else. Only
+        // fall back to the generic message if the thrower didn't set one.
+        String message = ex.getMessage();
+        if (message == null || message.isBlank()) {
+            message = "You do not have permission for this action";
+        }
+        ApiError body = ApiError.of(403, "Forbidden", message, req.getRequestURI());
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(body);
     }
 
@@ -218,5 +229,31 @@ public class GlobalExceptionHandler {
         ApiError body = ApiError.of(401, "Unauthorized",
                 "Session revoked due to suspected token reuse", req.getRequestURI());
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(body);
+    }
+
+    /**
+     * Phase 6C — reset token not recognised, expired, or already used. 400 with
+     * a generic message (same reasoning as Phase 6A's invalid refresh handler —
+     * don't leak which is which to a probing attacker).
+     */
+    @ExceptionHandler(com.example.Innovation_backend.auth.PasswordResetService.InvalidResetTokenException.class)
+    public ResponseEntity<ApiError> handleInvalidResetToken(
+            com.example.Innovation_backend.auth.PasswordResetService.InvalidResetTokenException ex,
+            HttpServletRequest req) {
+        ApiError body = ApiError.of(400, "Bad Request", "Reset token invalid", req.getRequestURI());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(body);
+    }
+
+    /**
+     * Phase 6B — verification token not recognised, expired, or already used.
+     * 400 with a generic message (same anti-enumeration reasoning as
+     * {@link #handleInvalidResetToken}).
+     */
+    @ExceptionHandler(com.example.Innovation_backend.auth.EmailVerificationService.InvalidVerificationTokenException.class)
+    public ResponseEntity<ApiError> handleInvalidVerificationToken(
+            com.example.Innovation_backend.auth.EmailVerificationService.InvalidVerificationTokenException ex,
+            HttpServletRequest req) {
+        ApiError body = ApiError.of(400, "Bad Request", "Verification token invalid", req.getRequestURI());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(body);
     }
 }

@@ -1,5 +1,6 @@
 package com.example.Innovation_backend.project.attachment;
 
+import com.example.Innovation_backend.auth.WriteGuard;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -25,12 +26,15 @@ import java.util.List;
  *   GET    /api/projects/{id}/attachments
  *   GET    /api/projects/{id}/attachments/{attId}  (binary stream)
  *   DELETE /api/projects/{id}/attachments/{attId}
+ *
+ * Phase 6B — write methods (upload, delete) require verified email.
  */
 @RestController
 @RequiredArgsConstructor
 public class ProjectAttachmentController {
 
     private final ProjectAttachmentService service;
+    private final WriteGuard writeGuard;
 
     @PostMapping(path = "/api/projects/{id}/attachments",
             consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -40,6 +44,7 @@ public class ProjectAttachmentController {
             @RequestPart("file") MultipartFile file,
             @RequestPart(value = "kind", required = false) AttachmentKind kind,
             @RequestPart(value = "caption", required = false) String caption) {
+        writeGuard.requireVerified();
         ProjectAttachmentResponse created = service.upload(id, file, kind, caption, currentEmail());
         return ResponseEntity
                 .created(java.net.URI.create(
@@ -79,6 +84,7 @@ public class ProjectAttachmentController {
     @PreAuthorize("isAuthenticated()")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@PathVariable Long id, @PathVariable Long attId) {
+        writeGuard.requireVerified();
         service.delete(id, attId, currentEmail());
     }
 

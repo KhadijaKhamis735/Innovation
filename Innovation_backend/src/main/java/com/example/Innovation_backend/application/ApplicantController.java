@@ -2,6 +2,7 @@ package com.example.Innovation_backend.application;
 
 import com.example.Innovation_backend.application.dto.ApplicationResponse;
 import com.example.Innovation_backend.application.dto.StageUpdateRequest;
+import com.example.Innovation_backend.auth.WriteGuard;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -23,12 +24,15 @@ import java.util.List;
  * Path convention follows plan §4.3:
  *   - Applicants are listed under the opportunity (resource-scoped).
  *   - Stage moves are under the application itself.
+ *
+ * Phase 6B — stage PATCH is gated by {@link WriteGuard}; admin bypasses.
  */
 @RestController
 @RequiredArgsConstructor
 public class ApplicantController {
 
     private final ApplicationService applicationService;
+    private final WriteGuard writeGuard;
 
     @GetMapping("/api/opportunities/{opportunityId}/applicants")
     @PreAuthorize("hasAnyRole('FUNDER','ADMIN')")
@@ -41,6 +45,7 @@ public class ApplicantController {
     public ApplicationResponse updateStage(
             @PathVariable Long id,
             @Valid @RequestBody StageUpdateRequest body) {
+        writeGuard.requireVerified();
         return applicationService.updateStage(id, body.stage(), currentEmail());
     }
 

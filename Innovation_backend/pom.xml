@@ -28,6 +28,12 @@
 	</scm>
 	<properties>
 		<java.version>17</java.version>
+		<!-- DB connection used by the Flyway Maven plugin (mvn flyway:repair / flyway:migrate).
+		     Override on the CLI for other environments, e.g.
+		     -Ddb.url=jdbc:postgresql://prod-host/db -Ddb.user=... -Ddb.password=... -->
+		<db.url>jdbc:postgresql://localhost:5432/innovation</db.url>
+		<db.user>postgres</db.user>
+		<db.password>12345678</db.password>
 	</properties>
 	<dependencies>
 		<dependency>
@@ -49,6 +55,12 @@
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-web</artifactId>
+		</dependency>
+
+		<!-- Phase 6B: email verification + password reset (SMTP transport) -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-mail</artifactId>
 		</dependency>
 
 		<dependency>
@@ -84,6 +96,13 @@
 		<dependency>
 			<groupId>org.springframework.security</groupId>
 			<artifactId>spring-security-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+
+		<!-- Phase 6D: in-memory H2 for @DataJpaTest + the corrected context-load test. -->
+		<dependency>
+			<groupId>com.h2database</groupId>
+			<artifactId>h2</artifactId>
 			<scope>test</scope>
 		</dependency>
 
@@ -156,6 +175,35 @@
 						</configuration>
 					</execution>
 				</executions>
+			</plugin>
+
+			<!-- Flyway Maven plugin: `mvn flyway:repair`, `mvn flyway:migrate`, `mvn flyway:info`.
+			     Connects via db.url / db.user / db.password defined in <properties> above,
+			     which mirror spring.datasource.* so dev / prod stay in lock-step. -->
+			<plugin>
+				<groupId>org.flywaydb</groupId>
+				<artifactId>flyway-maven-plugin</artifactId>
+				<version>11.7.2</version>
+				<configuration>
+					<url>${db.url}</url>
+					<user>${db.user}</user>
+					<password>${db.password}</password>
+					<locations>
+						<location>filesystem:src/main/resources/db/migration</location>
+					</locations>
+				</configuration>
+				<dependencies>
+					<dependency>
+						<groupId>org.postgresql</groupId>
+						<artifactId>postgresql</artifactId>
+						<version>42.7.3</version>
+					</dependency>
+					<dependency>
+						<groupId>org.flywaydb</groupId>
+						<artifactId>flyway-database-postgresql</artifactId>
+						<version>11.7.2</version>
+					</dependency>
+				</dependencies>
 			</plugin>
 		</plugins>
 	</build>

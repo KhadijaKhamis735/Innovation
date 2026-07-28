@@ -20,7 +20,8 @@ public record UserResponse(
         String phone,
         String bio,
         String location,
-        String avatarUrl
+        String avatarUrl,
+        boolean emailVerified
 ) {
     public static UserResponse fromEntity(User u) {
         return new UserResponse(
@@ -35,7 +36,8 @@ public record UserResponse(
                 u.getPhone(),
                 u.getBio(),
                 u.getLocation(),
-                u.getAvatarUrl()
+                u.getAvatarUrl(),
+                u.isEmailVerified()
         );
     }
 }

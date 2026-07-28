@@ -53,6 +53,7 @@ public class SecurityConfig {
                         // Public: health + auth endpoints (Phase 2) + read-only public listings
                         .requestMatchers("/api/health").permitAll()
                         .requestMatchers("/api/auth/**").permitAll()
+                        .requestMatchers("/api/mobile/auth/**").permitAll()
                         .requestMatchers("/api/club/auth/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/opportunities").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/opportunities/*").permitAll()
@@ -78,11 +79,14 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration cfg = new CorsConfiguration();
-        // React (Vite default 5173) + CRA (3000) — extend as needed
-        cfg.setAllowedOrigins(List.of(
-                "http://localhost:5173",
-                "http://localhost:3000",
-                "http://127.0.0.1:5173"
+        // Dev origins. In dev we accept any 127.0.0.1 / localhost
+        // port so that Expo/Metro/React dev-server port drift
+        // (19006 / 8081 / 8082 / 8083 …) never silently breaks a
+        // request. Production will inject a tighter allowlist via
+        // the application-prod profile.
+        cfg.setAllowedOriginPatterns(List.of(
+                "http://localhost:*",
+                "http://127.0.0.1:*"
         ));
         cfg.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         cfg.setAllowedHeaders(List.of("*"));

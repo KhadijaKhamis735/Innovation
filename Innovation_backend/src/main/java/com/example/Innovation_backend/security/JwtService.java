@@ -1,9 +1,9 @@
 package com.example.Innovation_backend.security;
 
+import com.example.Innovation_backend.config.RefreshProperties;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import javax.crypto.SecretKey;
@@ -12,8 +12,9 @@ import java.util.Date;
 import java.util.Map;
 
 /**
- * Issues and validates JWT tokens. Tokens are signed with HS512 using
- * the secret in application.properties (app.jwt.secret).
+ * Issues and validates access JWTs (short-lived — 15 min by default).
+ * Refresh tokens are persisted server-side and handled by
+ * {@link com.example.Innovation_backend.auth.RefreshTokenService}.
  *
  * Token claims:
  *   sub  — email (login id)
@@ -24,11 +25,11 @@ import java.util.Map;
 public class JwtService {
 
     private final SecretKey key;
-    private final long expirationMs;
+    private final long accessExpirationMs;
 
     public JwtService(
-            @Value("${app.jwt.secret}") String secret,
-            @Value("${app.jwt.expiration-ms}") long expirationMs
+            @org.springframework.beans.factory.annotation.Value("${app.jwt.secret}") String secret,
+            RefreshProperties props
     ) {
         // Secret must be at least 64 bytes for HS512
         byte[] bytes = secret.getBytes(StandardCharsets.UTF_8);
@@ -37,18 +38,18 @@ public class JwtService {
                     "app.jwt.secret must be at least 64 bytes for HS512. Current length: " + bytes.length);
         }
         this.key = Keys.hmacShaKeyFor(bytes);
-        this.expirationMs = expirationMs;
+        this.accessExpirationMs = props.accessExpirationMs();
     }
 
     /**
-     * Issue a token for a given principal.
+     * Issue an access token for a given principal.
      * @param email the user's login id (used as "sub")
      * @param userId the user's id
      * @param role lowercase role string ("innovator", "funder", etc.)
      */
     public String issue(String email, Long userId, String role) {
         Date now = new Date();
-        Date exp = new Date(now.getTime() + expirationMs);
+        Date exp = new Date(now.getTime() + accessExpirationMs);
 
         return Jwts.builder()
                 .subject(email)
@@ -75,5 +76,10 @@ public class JwtService {
         } catch (Exception e) {
             return null;
         }
+    }
+
+    /** Access-token TTL in milliseconds. Useful for the frontend to schedule refreshes. */
+    public long accessExpirationMs() {
+        return accessExpirationMs;
     }
 }

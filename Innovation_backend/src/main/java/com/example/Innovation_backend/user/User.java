@@ -56,13 +56,20 @@ public class User {
     @Column(length = 160) private String location;
     @Column(length = 500) private String avatarUrl;
 
-    // Notification preferences — flattened booleans (matches Settings.jsx)
-    @Column(nullable = false) private boolean emailApplications = true;
-    @Column(nullable = false) private boolean emailUpdates = true;
-    @Column(nullable = false) private boolean emailReminders = true;
-    @Column(nullable = false) private boolean pushApplications = false;
-    @Column(nullable = false) private boolean pushUpdates = false;
-    @Column(nullable = false) private boolean pushReminders = false;
+    // Notification preferences — flattened booleans (matches Settings.jsx).
+    // Phase 6D: @Builder.Default on each so User.builder() preserves the field
+    // initialisers instead of falling back to Java primitive defaults (false).
+    @Column(nullable = false) @Builder.Default private boolean emailApplications = true;
+    @Column(nullable = false) @Builder.Default private boolean emailUpdates = true;
+    @Column(nullable = false) @Builder.Default private boolean emailReminders = true;
+    @Column(nullable = false) @Builder.Default private boolean pushApplications = false;
+    @Column(nullable = false) @Builder.Default private boolean pushUpdates = false;
+    @Column(nullable = false) @Builder.Default private boolean pushReminders = false;
+
+    // Phase 6B — self-registered accounts must verify their email before
+    // they can post / apply / etc. Seeded admin is verified by default.
+    @Column(name = "email_verified", nullable = false)
+    @Builder.Default private boolean emailVerified = true;
 
     @CreatedDate
     @Column(nullable = false, updatable = false)

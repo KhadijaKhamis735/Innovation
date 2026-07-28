@@ -1,5 +1,6 @@
 package com.example.Innovation_backend.opportunity;
 
+import com.example.Innovation_backend.auth.WriteGuard;
 import com.example.Innovation_backend.opportunity.dto.OpportunityRequest;
 import com.example.Innovation_backend.opportunity.dto.OpportunityResponse;
 import jakarta.validation.Valid;
@@ -21,6 +22,9 @@ import java.util.List;
  * by {@code @PreAuthorize("hasRole('FUNDER')")}. The org-approval gate is
  * enforced inside {@link OpportunityService} (it has to look at the DB).
  *
+ * Phase 6B — write methods additionally call {@link WriteGuard#requireVerified()}
+ * so unverified funders can't post until they click the email link.
+ *
  * Like the other Phase 3 controllers, the acting user's email is read from
  * SecurityContextHolder rather than @AuthenticationPrincipal, because the
  * latter was unreliable in 3A.
@@ -31,6 +35,7 @@ import java.util.List;
 public class OpportunityController {
 
     private final OpportunityService opportunityService;
+    private final WriteGuard writeGuard;
 
     // ── Public reads ─────────────────────────────────────────────────
 
@@ -55,6 +60,7 @@ public class OpportunityController {
     @PostMapping
     @PreAuthorize("hasRole('FUNDER')")
     public ResponseEntity<OpportunityResponse> create(@Valid @RequestBody OpportunityRequest req) {
+        writeGuard.requireVerified();
         OpportunityResponse created = opportunityService.create(req, currentEmail());
         return ResponseEntity
                 .created(URI.create("/api/opportunities/" + created.id()))
@@ -65,6 +71,7 @@ public class OpportunityController {
     @PreAuthorize("hasRole('FUNDER')")
     public OpportunityResponse update(@PathVariable Long id,
                                       @Valid @RequestBody OpportunityRequest req) {
+        writeGuard.requireVerified();
         return opportunityService.update(id, req, currentEmail());
     }
 
@@ -72,6 +79,7 @@ public class OpportunityController {
     @PreAuthorize("hasAnyRole('FUNDER','ADMIN')")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@PathVariable Long id) {
+        writeGuard.requireVerified();
         opportunityService.delete(id, currentEmail());
     }
 

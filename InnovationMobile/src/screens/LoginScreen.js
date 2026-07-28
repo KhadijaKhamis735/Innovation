@@ -14,31 +14,42 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { colors } from '../styles/colors';
+import { useAuth } from '../context/AuthContext';
 
 export default function LoginScreen({ navigation }) {
   const { width } = useWindowDimensions();
+  const { signIn } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  // The visible toggle is a UI hint only — the backend role is
+  // authoritative for routing after sign-in.
   const [role, setRole] = useState('innovator');
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     if (!email || !password) {
       setError('Please fill in all fields.');
       return;
     }
     setError('');
     setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
-      if (role === 'funder') {
+    try {
+      const signedInUser = await signIn({ email: email.trim(), password });
+      // Backend role decides where we go. The `role` state is only
+      // a hint for the UI; if the user picked the wrong toggle, the
+      // backend will route them to the correct dashboard anyway.
+      if (signedInUser?.role === 'funder') {
         navigation.replace('FunderDashboard');
       } else {
         navigation.replace('Dashboard');
       }
-    }, 800);
+    } catch (e) {
+      setError(e?.message || 'Could not sign in. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (

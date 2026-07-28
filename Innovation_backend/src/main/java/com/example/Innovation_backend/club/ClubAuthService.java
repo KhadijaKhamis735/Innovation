@@ -1,12 +1,18 @@
 package com.example.Innovation_backend.club;
 
+import com.example.Innovation_backend.auth.EmailVerificationService;
+import com.example.Innovation_backend.auth.EmailVerificationToken;
+import com.example.Innovation_backend.auth.RefreshToken;
+import com.example.Innovation_backend.auth.RefreshTokenService;
 import com.example.Innovation_backend.club.dto.ClubAuthResponse;
 import com.example.Innovation_backend.club.dto.ClubLoginRequest;
 import com.example.Innovation_backend.club.dto.ClubRegisterRequest;
 import com.example.Innovation_backend.club.dto.MemberResponse;
 import com.example.Innovation_backend.common.DataSeedRunner; // for the test-only fallback club
+import com.example.Innovation_backend.security.CookieUtils;
 import com.example.Innovation_backend.security.JwtService;
 import jakarta.persistence.EntityNotFoundException;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -38,6 +44,9 @@ public class ClubAuthService {
     private final UniversityRepository universityRepo;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
+    private final RefreshTokenService refreshTokens;
+    private final CookieUtils cookieUtils;
+    private final EmailVerificationService emailVerification;
 
     // ── Register ──────────────────────────────────────────────────────
 
@@ -78,6 +87,8 @@ public class ClubAuthService {
                 .bio(trimOrNull(req.bio()))
                 .status(MembershipStatus.PENDING)
                 .club(club)
+                // Phase 6B — self-registered members start unverified.
+                .emailVerified(false)
                 .build();
 
         ClubMember saved;
@@ -92,7 +103,58 @@ public class ClubAuthService {
         String token = jwtService.issue(saved.getEmail(), saved.getId(), "club-member");
         log.info("ClubMember registered: id={} email={} uni={} club={}",
                 saved.getId(), saved.getEmail(), uni.getShortName(), club.getName());
+
+        // Phase 6B — issue a verification token + email the link.
+        emailVerification.issue(
+                EmailVerificationToken.Surface.CLUB,
+                saved.getId(),
+                saved.getEmail()
+        );
+
         return ClubAuthResponse.forMember(token, saved);
+    }
+
+    // ── Email verification (Phase 6B) ───────────────────────────────────
+
+    @Transactional
+    public void verifyClubEmail(String rawToken) {
+        EmailVerificationToken row = emailVerification.consume(rawToken);
+        if (row.getSurface() != EmailVerificationToken.Surface.CLUB) {
+            throw new EmailVerificationService.InvalidVerificationTokenException(
+                    "Token belongs to a different surface");
+        }
+        ClubMember m = memberRepo.findById(row.getUserId())
+                .orElseThrow(() -> new IllegalStateException(
+                        "ClubMember vanished during verification: id=" + row.getUserId()));
+        m.setEmailVerified(true);
+        memberRepo.save(m);
+    }
+
+    @Transactional
+    public void resendClubVerification() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || auth.getName() == null) {
+            throw new AccessDeniedException("Not authenticated");
+        }
+        String email = auth.getName().trim().toLowerCase();
+        ClubMember m = memberRepo.findByEmail(email)
+                .orElseThrow(() -> new IllegalArgumentException("ClubMember not found: " + email));
+        if (m.isEmailVerified()) {
+            throw new IllegalStateException("Email is already verified");
+        }
+        emailVerification.issue(
+                EmailVerificationToken.Surface.CLUB,
+                m.getId(),
+                m.getEmail()
+        );
+    }
+
+    /** Issue a refresh cookie for a freshly-registered member and write it on the response. */
+    public ClubAuthResponse withRefreshCookie(ClubAuthResponse body,
+                                              Long userId,
+                                              HttpServletResponse response) {
+        attachRefreshCookie(response, userId);
+        return body;
     }
 
     // ── Login ─────────────────────────────────────────────────────────
@@ -128,6 +190,46 @@ public class ClubAuthService {
         }
 
         throw new BadCredentialsException("Invalid email or password");
+    }
+
+    // ── Refresh / logout ──────────────────────────────────────────────
+
+    @Transactional
+    public ClubAuthResponse refresh(String rawRefreshToken, HttpServletResponse response) {
+        RefreshTokenService.Issued next = refreshTokens.rotate(rawRefreshToken);
+        if (next.row().getSurface() != RefreshToken.Surface.CLUB) {
+            throw new RefreshTokenService.InvalidRefreshException(
+                    "Refresh token belongs to a different surface");
+        }
+        Long userId = next.row().getUserId();
+        cookieUtils.writeRefreshCookie(response, next.rawToken());
+
+        // Members take precedence on id-collision because they self-register;
+        // leaders are admin-managed. Both tables enforce uniqueness.
+        var member = memberRepo.findById(userId);
+        if (member.isPresent()) {
+            ClubMember m = member.get();
+            String access = jwtService.issue(m.getEmail(), m.getId(), "club-member");
+            return ClubAuthResponse.forMember(access, m);
+        }
+        var leader = leaderRepo.findById(userId);
+        if (leader.isPresent()) {
+            ClubLeader l = leader.get();
+            String access = jwtService.issue(l.getEmail(), l.getId(), "club-leader");
+            return ClubAuthResponse.forLeader(access, l);
+        }
+        throw new BadCredentialsException("Club principal no longer exists");
+    }
+
+    @Transactional
+    public void logout(String rawRefreshToken, HttpServletResponse response) {
+        refreshTokens.revoke(rawRefreshToken);
+        cookieUtils.clearRefreshCookie(response);
+    }
+
+    private void attachRefreshCookie(HttpServletResponse response, Long userId) {
+        RefreshTokenService.Issued issued = refreshTokens.issue(RefreshToken.Surface.CLUB, userId);
+        cookieUtils.writeRefreshCookie(response, issued.rawToken());
     }
 
     // ── Me ────────────────────────────────────────────────────────────

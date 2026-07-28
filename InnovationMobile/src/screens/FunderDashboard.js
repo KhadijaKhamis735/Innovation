@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { colors } from '../styles/colors';
 import Sidebar from '../components/Sidebar';
+import { useAuth } from '../context/AuthContext';
 
 // Mirrors web `OrganizationDashboard` data
 const stats = [
@@ -110,13 +111,16 @@ const getActivityPalette = (icon) => {
 };
 
 export default function FunderDashboard({ navigation }) {
+  const { user: authUser } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [activeScreen, setActiveScreen] = useState('funderDashboard');
   const [selectedProject, setSelectedProject] = useState(null);
 
-  // Mirrors the web's `user?.name`
-  const user = { firstName: 'Organization', lastName: '' };
+  // Mirrors the web's `user?.name` — now sourced from the live auth
+  // context. Falls back to an empty object while the /me hydrate is
+  // still in flight so the rest of the render stays safe.
+  const user = authUser ?? { firstName: '', lastName: '' };
 
   const handleSidebarNav = (screen) => {
     setActiveScreen(screen);
@@ -124,7 +128,7 @@ export default function FunderDashboard({ navigation }) {
 
   const { height: windowHeight } = useWindowDimensions();
 
-  const userInitials = `${user.firstName?.[0] || 'O'}${user.lastName?.[0] || ''}`;
+  const userInitials = `${user.firstName?.[0] || ''}${user.lastName?.[0] || ''}`.toUpperCase() || '··';
 
   return (
     <View style={styles.root}>

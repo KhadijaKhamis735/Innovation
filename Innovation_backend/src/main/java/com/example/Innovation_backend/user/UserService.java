@@ -41,6 +41,8 @@ public class UserService {
                 .status("active")
                 .emailApplications(true).emailUpdates(true).emailReminders(true)
                 .pushApplications(false).pushUpdates(false).pushReminders(false)
+                // Phase 6B — self-registered accounts start unverified.
+                .emailVerified(false)
                 .build();
 
         return UserResponse.fromEntity(repo.save(u));

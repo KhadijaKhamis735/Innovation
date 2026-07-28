@@ -9,6 +9,7 @@ import {
 import { CommonActions } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { colors } from '../styles/colors';
+import { useAuth } from '../context/AuthContext';
 
 const innovatorMenuItems = [
   { id: 'dashboard', label: 'Dashboard', icon: '📊', screen: 'Dashboard' },
@@ -49,6 +50,8 @@ const clubMenuItems = [
 ];
 
 export default function Sidebar({ activeScreen, onNavigate, onClose, navigation, userType = 'innovator', isClubMember = false }) {
+  const { user, signOut } = useAuth();
+
   // If the user has joined the club, always show the club menu — even
   // when the screen that opened the Sidebar was the Innovator Dashboard.
   // This is what makes a single login serve both modules.
@@ -97,10 +100,25 @@ export default function Sidebar({ activeScreen, onNavigate, onClose, navigation,
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     onClose();
+    // Phase 1: clear server-side refresh + local tokens, then reset the stack.
+    try { await signOut(); } catch { /* best-effort */ }
     performLogout();
   };
+
+  // Identity shown in the footer — sourced from the authenticated user.
+  const displayName = user
+    ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email
+    : 'Signed out';
+  const displayEmail = user?.email || '';
+  const initials = (() => {
+    if (!user) return '··';
+    const first = user.firstName?.[0] || '';
+    const last = user.lastName?.[0] || '';
+    const combined = `${first}${last}`.trim();
+    return combined || (user.email?.[0] || '?').toUpperCase();
+  })();
 
   return (
     <View style={styles.overlay}>
@@ -165,11 +183,11 @@ export default function Sidebar({ activeScreen, onNavigate, onClose, navigation,
         <View style={styles.footer}>
           <View style={styles.userInfo}>
             <View style={styles.userAvatar}>
-              <Text style={styles.userAvatarText}>FH</Text>
+              <Text style={styles.userAvatarText}>{initials}</Text>
             </View>
-            <View>
-              <Text style={styles.userName}>Fatma Hassan</Text>
-              <Text style={styles.userEmail}>fatma@example.com</Text>
+            <View style={{ flexShrink: 1 }}>
+              <Text style={styles.userName} numberOfLines={1}>{displayName}</Text>
+              <Text style={styles.userEmail} numberOfLines={1}>{displayEmail}</Text>
             </View>
           </View>
           

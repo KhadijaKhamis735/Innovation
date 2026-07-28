@@ -144,9 +144,40 @@ public class OpportunityService {
     /**
      * The gating check. Throws 403 with a specific message that the frontend
      * can surface verbatim: "Your organization is not approved yet".
+     *
+     * Lookup strategy:
+     *   1. By {@code funder_id} — the normal path. The org is auto-created
+     *      on register with the funder's User id, and the unique constraint
+     *      guarantees one row per funder.
+     *   2. By email — fallback for when the User row was recreated (e.g. the
+     *      user re-registered after being deleted, or a seed re-run wiped
+     *      users but not orgs) and the org's stored funder_id no longer
+     *      points at the current User. The org still has the funder's email,
+     *      which is stable across that recreation. When we find an org this
+     *      way we silently re-bind it to the current user so future lookups
+     *      hit the fast path.
      */
     private void requireApprovedOrg(User funder) {
         Organization org = organizationRepo.findByFunderId(funder.getId()).orElse(null);
+
+        if (org == null) {
+            org = organizationRepo.findFirstByEmailIgnoreCase(funder.getEmail()).orElse(null);
+            if (org != null) {
+                // Self-heal: re-bind the orphan org to the current User so the
+                // next lookup hits the fast path. Only do this when the
+                // rebind target is actually free — the unique constraint on
+                // funder_id guards against double-binding.
+                if (!organizationRepo.existsByFunderId(funder.getId())) {
+                    org.setFunder(funder);
+                    organizationRepo.save(org);
+                } else {
+                    // Race: another funder already claimed this slot. Fall
+                    // back to "not approved" rather than corrupt the link.
+                    org = null;
+                }
+            }
+        }
+
         if (org == null || org.getStatus() != OrganizationStatus.APPROVED) {
             throw new AccessDeniedException("Your organization is not approved yet");
         }

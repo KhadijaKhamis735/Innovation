@@ -570,14 +570,167 @@ The following sub-phases were scoped and (for Elections) partially built, but th
 
 **Removed because:** the user determined elections / executive appointment flows are out of MVP scope. The system retains read-only executive committee display via the kept `executives` state in `ClubContext.jsx`.
 
-### ⚪ Phase 6 — Hardening (later)
-- [ ] Refresh tokens
-- [ ] Email verification on register
-- [ ] Forgot-password flow
-- [ ] Flyway migrations (replace `ddl-auto=update`)
-- [ ] File uploads (avatar, opportunity images, IP attachments)
-- [ ] Real email service (queue the toast "email sent" placeholders from `AdminDashboard`/`ReceivedApplications`)
-- [ ] Comprehensive tests (unit + integration)
+### 🟣 Phase 6 — Hardening
+
+#### ✅ Phase 6A — Refresh tokens (DONE 2026-07-24)
+**Backend:**
+- [x] `V3__refresh_tokens.sql` Flyway migration — `refresh_tokens` table with `surface`, `user_id`, `family_id`, `token_hash` (SHA-256, unique), `expires_at`, `created_at`, `revoked_at`, `replaced_by_id`. Indexed on `(surface, user_id)`, `family_id`, `expires_at`.
+- [x] `auth/RefreshToken.java` entity + `RefreshTokenRepository` (incl. `revokeFamily` for reuse-detection)
+- [x] `auth/RefreshTokenService` — `issue / rotate / revoke`. Raw token format: 32 random bytes → URL-safe Base64; we never persist the raw value.
+- [x] `config/RefreshProperties` — `@ConfigurationProperties("app.refresh")` for access TTL (15m), refresh TTL (7d), cookie name, Secure flag, SameSite. Compact constructor defaults.
+- [x] `security/CookieUtils` — `ResponseCookie`-based set/clear/read for `refresh_token` (HttpOnly, SameSite=Lax, configurable Secure).
+- [x] `JwtService` now reads `access-expiration-ms` from `RefreshProperties` (was 24h, now 15m default). Old `app.jwt.expiration-ms` removed.
+- [x] `AuthService.login/register/refresh/logout` — `register` + `login` set the refresh cookie; `refresh` rotates (and detects reuse → kills family); `logout` revokes + clears cookie.
+- [x] `AuthController` gains `POST /api/auth/refresh` + `POST /api/auth/logout`. Response header `X-Access-Expires-In-Ms` exposes TTL for proactive refresh.
+- [x] `ClubAuthService/Controller` mirror all four endpoints (`/api/club/auth/{refresh,logout}`). Members and leaders both work; service looks up the principal in `memberRepo` then `leaderRepo` after rotation.
+- [x] `GlobalExceptionHandler` maps `InvalidRefreshException` → 401 (generic message to avoid distinguishing "not found" from "expired"), `ReuseDetectedException` → 401 + WARN log.
+- [x] `InnovationBackendApplication` — added `@ConfigurationPropertiesScan`.
+- [x] `application.properties` — added `app.refresh.*` block (cookie-secure defaults to `false` for local dev).
+
+**Frontend:**
+- [x] `src/api/client.js` — `credentials: 'include'` on every fetch, `silent refresh on 401` with **single in-flight promise** for concurrent 401s, `safeJson` helper, `logout()` helper that revokes the cookie server-side, `api.refresh()` for proactive refresh. Added `X-Access-Expires-In-Ms` honoured (optional).
+- [x] `src/club/api/clubApi.js` — same silent-refresh pattern, separate `REFRESH_PATH` (`/api/club/auth/refresh`) + `LOGOUT_PATH`, separate `clubToken` key. `logoutClub()` exported.
+- [x] `src/context/AuthContext.jsx` — `logout` is now async and calls `apiLogout()` (revokes refresh cookie). Existing call sites fire-and-forget it; safe because the inner call swallows network errors.
+- [x] `src/club/context/ClubContext.jsx` — `logoutClubBackend` is now async and calls `apiClubLogout()`.
+
+**Verify (compile/build only — runtime needs the backend running):**
+- [x] `mvn -DskipTests compile` → BUILD SUCCESS
+- [x] `npx vite build` → 103 modules, no errors
+- [ ] Manual end-to-end (recipe in `/tmp/phase6a-smoke.sh`):
+  - [ ] Login → DevTools → Application → Cookies shows `refresh_token` HttpOnly
+  - [ ] Manually delete the `token` from localStorage, hit any authed endpoint → silent refresh + retry succeeds
+  - [ ] Reuse the OLD refresh cookie value (capture before refresh) → 401 + reuse-detection log
+  - [ ] Logout → cookie cleared + DB row `revoked_at` set
+  - [ ] Same flow for `/api/club/auth/*`
+
+#### ✅ Phase 6B — Email verification on register (DONE 2026-07-24)
+**Backend:**
+- [x] `pom.xml` — `spring-boot-starter-mail`
+- [x] `V4__email_verification.sql` Flyway migration — `email_verified BOOLEAN NOT NULL DEFAULT TRUE` on `users` + `club_members` (default TRUE so seeded admin/leader accounts are verified); new `email_verification_tokens` table with `surface`, `user_id`, `token_hash`, `expires_at`, `consumed_at`, indexed on `(surface, user_id)` + `expires_at`.
+- [x] `auth/EmailVerificationToken.java` entity + `EmailVerificationTokenRepository`
+- [x] `common/EmailService.java` — `JavaMailSender`-backed. Failures logged at WARN and swallowed so an SMTP outage doesn't block registration.
+- [x] `auth/EmailVerificationService.java` — `issue(surface, userId, email)` (invalidates prior tokens, generates SHA-256-hashed 32-byte URL-safe token, sends email with `verificationUrlBase + raw`), `consume(rawToken)` (sets `consumedAt`, returns the row), `tryConsume(rawToken)` (Optional variant).
+- [x] `auth/WriteGuard.java` — `@Component` with `requireVerified()`. Looks up the calling principal in `UserRepository` → `ClubMemberRepository` → `ClubLeaderRepository`; throws `AccessDeniedException("Please verify your email before performing this action")` if `email_verified=false`. ADMIN/CLUB_LEADER pass through.
+- [x] `User` and `ClubMember` entities gain `emailVerified` field.
+- [x] `UserResponse` DTO gains `emailVerified` boolean.
+- [x] `UserService.register` now sets `emailVerified=false` for self-registered accounts.
+- [x] `ClubAuthService.register` now sets `emailVerified=false` for self-registered members.
+- [x] `AuthService.register` issues a verification token + emails the link right after register.
+- [x] `AuthController` gains `GET /api/auth/verify?token=…` (public) and `POST /api/auth/resend-verification` (auth).
+- [x] `ClubAuthController` mirrors both: `GET /api/club/auth/verify?token=…` and `POST /api/club/auth/resend-verification`.
+- [x] `WriteGuard.requireVerified()` applied at the start of every write controller method:
+  - `OpportunityController` (POST/PUT/DELETE)
+  - `ApplicationController` (POST apply)
+  - `ApplicantController` (PATCH stage)
+  - `ProjectController` (POST/PUT/DELETE/PATCH phase + all milestone CRUD)
+  - `ProjectAttachmentController` (POST upload, DELETE attachment)
+  - `ClubActivityController` (POST/PATCH/DELETE activity + register/unregister)
+  - `ClubAnnouncementController` (POST/PATCH/DELETE)
+  - (Admin endpoints intentionally NOT gated — admins are seeded + already verified)
+
+**Frontend:**
+- [x] `src/pages/VerifyEmail.jsx` (NEW) — handles `?token=…` (verify via backend), `?notice=sent` (informational), `?surface=club` (uses club endpoint). Inline success/error states + a "Go to login" CTA.
+- [x] `src/components/Navbar.jsx` — adds a yellow "⚠️ Your email isn't verified" banner when `user.emailVerified === false`, with a "Resend verification email" button that POSTs to `/api/auth/resend-verification`.
+- [x] `src/App.jsx` — new route `/verify` → `VerifyEmail`.
+
+**Verify (compile/build only — runtime needs the backend running with Gmail SMTP):**
+- [x] `mvn -DskipTests compile` → BUILD SUCCESS
+- [x] `npx vite build` → 104 modules, no errors
+- [ ] Manual end-to-end (recipe in `/tmp/phase6b-smoke.sh`):
+  - [ ] Register a fresh innovator → DB row has `email_verified=false` → gmail inbox shows the email with `?token=…`
+  - [ ] Click the link → browser navigates to `/verify?token=…` → backend marks verified → success page
+  - [ ] Without verifying, `POST /api/projects` → 403 with "Please verify your email before performing this action"
+  - [ ] After verifying, `POST /api/projects` → 201
+  - [ ] Click "Resend" → new token issued, prior ones invalidated, email arrives again
+  - [ ] Same flow for `/api/club/auth/register` + `/api/club/auth/verify`
+  - [ ] Frontend: log in as unverified user → see yellow banner with resend button in Navbar
+
+#### ✅ Phase 6C — Forgot-password / reset-password (DONE 2026-07-24)
+**Backend:**
+- [x] `V5__password_reset.sql` Flyway migration — `password_reset_tokens` table (mirror of V4: `surface`, `user_id`, `token_hash`, `expires_at`, `consumed_at`, indexed on `(surface, user_id)` + `expires_at`).
+- [x] `auth/PasswordResetToken.java` entity + `PasswordResetTokenRepository`.
+- [x] `auth/PasswordResetService.java` — `issueForEmail(email)` (looks up User → ClubMember → ClubLeader, returns `Optional<Issued>` so the endpoint can always 202), `consume(rawToken, newPassword)` (validates token, hashes new password, updates User | ClubMember | ClubLeader, **revokes ALL refresh tokens for that principal**, marks token consumed). Same password rules as register page (≥6 chars + digit).
+- [x] `auth/RefreshTokenRepository.revokeAllForPrincipal(surface, userId)` — new `@Modifying` query used by `PasswordResetService.consume` so a leaked password's sessions die immediately.
+- [x] `user/dto/ForgotPasswordRequest.java` + `ResetPasswordRequest.java` — bean-validated.
+- [x] `AuthController` gains `POST /api/auth/forgot-password` (always 202) + `POST /api/auth/reset-password` (204 on success, 400 on bad token, 400 on bad password shape).
+- [x] `ClubAuthController` mirrors both (`/api/club/auth/forgot-password` + `/reset-password`). Service does the cross-table lookup so the same surface splits correctly.
+- [x] `application.properties` — `app.email.reset-url` + `app.email.reset-expiration-ms` (1h default).
+- [x] `GlobalExceptionHandler` — new handler for `PasswordResetService.InvalidResetTokenException` → 400 with generic message (no leak between "expired" / "used" / "not found").
+
+**Frontend:**
+- [x] `src/pages/AuthPage.jsx` — `ForgotTab` rewritten: drops the 3-step mock (`Email → 6-digit code → reset`) in favor of a 2-step real flow (`Email → "check your inbox"`). The "Send reset link" button now calls `POST /api/auth/forgot-password`. The "check your inbox" step tells the user to click the link in their email.
+- [x] `src/pages/ResetPassword.jsx` (NEW) — reads `?token=…` (and optional `?surface=club`), validates the new password (≥6 + digit + match), POSTs to `/api/auth/reset-password` (or `/api/club/auth/reset-password`), shows a success screen and redirects to `/login`. Inline error UI for bad/expired tokens.
+- [x] `src/App.jsx` — new route `/reset-password` → `ResetPassword`.
+
+**Verify (compile/build only — runtime needs the backend running with Gmail SMTP):**
+- [x] `mvn -DskipTests compile` → BUILD SUCCESS
+- [x] `npx vite build` → 105 modules, no errors
+- [ ] Manual end-to-end (recipe in `/tmp/phase6c-smoke.sh`):
+  - [ ] `POST /api/auth/forgot-password` with admin email → 202 → check Gmail for the link
+  - [ ] `POST /api/auth/forgot-password` with unknown email → 202 (no enumeration)
+  - [ ] Click the link → `/reset-password?token=…` → enter new password → success → redirect to login
+  - [ ] Log in with new password → access token issued, new refresh cookie
+  - [ ] Old refresh cookie is now invalid (revoked by `revokeAllForPrincipal`) → next `/api/auth/refresh` returns 401
+  - [ ] Reuse the consumed token → 400
+  - [ ] Frontend: visit `/forgot-password` → enter email → "check your inbox" panel
+  - [ ] Frontend: open email link → `/reset-password?token=…` → set new password → "Password updated" → redirected to login
+
+#### ✅ Phase 5C-B + earlier hardening (already complete from earlier phases)
+- [x] Flyway migrations — in use since Phase 5C-A (V1, V2 in place); V3 added here
+- [x] File uploads — Phase 5C-B (multipart, 10MB cap, 5/project limit, storage root config)
+- [x] Email service — toast placeholders only (no real SMTP yet)
+
+#### ✅ Phase 6D — Test suite (DONE 2026-07-25)
+
+The Phase 6 services (refresh tokens, email verification, password reset) and the extended `AuthController` shipped with zero test coverage. Phase 6D ships a self-contained test suite that runs from a clean machine with **no Postgres, no Docker, no real SMTP** — `mvn clean test` is the entire setup.
+
+**Infrastructure:**
+- [x] `pom.xml` — added `com.h2database:h2` with `<scope>test</scope>` (no version — Spring Boot BOM manages it)
+- [x] `src/test/resources/application-test.properties` (NEW) — H2 in `MODE=PostgreSQL` + `DB_CLOSE_DELAY=-1` + `DATABASE_TO_LOWER=TRUE`, Flyway off, Hibernate `create-drop`, safe localhost SMTP, 70-byte JWT secret, all `app.refresh.*` + `app.email.*` mirrors
+- [x] `InnovationBackendApplicationTests.contextLoads()` — added `@ActiveProfiles("test")`; the existing test now runs against H2 instead of trying to bootstrap real Postgres + Flyway
+- [x] `user/User.java` — added `@Builder.Default` to the seven notification booleans + `emailVerified` so `User.builder()` matches the field-initialiser defaults. The user explicitly requested this fix.
+
+**Production code touched (besides `User`):**
+- [x] `auth/RefreshTokenRepository` — `revokeFamily` and `revokeAllForPrincipal` now take `revokedAt: Instant` instead of using `CURRENT_TIMESTAMP` in JPQL. H2 resolves `CURRENT_TIMESTAMP` to `java.sql.Timestamp`, which can't be assigned to our `Instant` field (HHH-17560). Both services updated to pass `Instant.now()`.
+- [x] `auth/RefreshTokenRepository.revokeAllForPrincipal` parameter type changed from `String` to `RefreshToken.Surface` (Spring Data is strict about parameter type matching the entity field type — passing a `String` for an enum-typed column fails the binding). `PasswordResetService.consume` updated to map between the two `Surface` enums by name.
+- [x] `common/GlobalExceptionHandler` — new handler for `EmailVerificationService.InvalidVerificationTokenException` → 400 (was previously unhandled → 500).
+
+**Test files (7 new, 73 total tests, all green):**
+
+| Layer | File | Cases | What it covers |
+|---|---|---|---|
+| Unit | `auth/RefreshTokenServiceTest.java` | 9 | Issue (hashed, future expiry, family preservation), rotate (happy path, unknown, expired, reuse-detection + family kill, family isolation), revoke (active, unknown) |
+| Unit | `auth/EmailVerificationServiceTest.java` | 8 | Issue (invalidates prior tokens, sends email with correct link, hash ≠ raw), consume (valid, unknown, double-use, expired), tryConsume (invalid, valid) |
+| Unit | `auth/PasswordResetServiceTest.java` | 13 | Cross-table lookup (User → ClubMember → ClubLeader), unknown email (no enumeration), consume error paths (unknown/used/expired), per-principal password update (User/ClubMember/ClubLeader), `revokeAllForPrincipal` called with right surface+userId+Instant, password shape enforcement (length + digit) |
+| `@DataJpaTest` | `auth/RefreshTokenRepositoryTest.java` | 6 | Hash lookup, unique-constraint enforcement, `revokeFamily` scope, `revokeAllForPrincipal` cross-surface/cross-user scope, `Surface` enum round-trip, `@CreatedDate` populated |
+| `@DataJpaTest` | `auth/EmailVerificationTokenRepositoryTest.java` | 7 | Hash lookup, unique-constraint, `consumedAt` persistence, `isExpired` for past/future, `Surface` round-trip, auditing |
+| `@DataJpaTest` | `auth/PasswordResetTokenRepositoryTest.java` | 7 | Same shape as the email-verification test |
+| `@WebMvcTest` | `auth/AuthControllerWebMvcTest.java` | 22 | Register (201 + cookie, 400 on short pw / no digit / missing email), login (200 + cookie, 400 on missing email), refresh (200, 401 on `InvalidRefreshException`, 401 on `ReuseDetectedException`, 401 on missing cookie), logout (204), verify (200, 400 on invalid token), resend (202), forgot-password (202 for known AND unknown email — anti-enumeration, 400 on malformed email), reset-password (204, 400 on short pw / no digit / invalid token), endpoint path smoke |
+
+**Verify (end-to-end from a clean machine):**
+```bash
+cd "Innovation_backend"
+mvn clean test
+# → Tests run: 73, Failures: 0, Errors: 0, Skipped: 0
+# → BUILD SUCCESS in ~18 s
+```
+
+Inner loop (one class at a time):
+```bash
+mvn -Dtest=RefreshTokenServiceTest test
+mvn -Dtest=AuthControllerWebMvcTest test
+# etc — see the seven class names above
+```
+
+**Out of scope (deliberately skipped):**
+- `EmailService.send` — one-line SMTP passthrough; swallowed exceptions; mocked everywhere
+- `ClubAuthService` — mirrors `AuthService`; can be added later if behaviour diverges
+- `ProjectService.create` — high fixture cost; not Phase-6-specific
+- Per-controller `WriteGuard` calls — the guard itself can get a focused unit test later
+- jjwt library internals
+- Flyway-on-H2 migration portability — `create-drop` builds the schema from entities, not from migrations
+- Real SMTP delivery
+- Testcontainers / Docker
 
 > **Note:** Phase 6 of the original plan ("Frontend integration") has been **dissolved into Phases 2–4**. Every backend phase now ships with a corresponding frontend patch so the user can test in the React UI immediately. This is the parallel workflow.
 
