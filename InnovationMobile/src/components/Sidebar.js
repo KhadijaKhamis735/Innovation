@@ -29,36 +29,14 @@ const funderMenuItems = [
   { id: 'settings', label: 'Settings', icon: '⚙️', screen: 'Settings' },
 ];
 
-// Club Member menu — uses the same component shape as the other two
-// menus. Section dividers (object with type:'divider') render as a thin
-// horizontal rule so the user can see where Innovation ends and Club
-// begins when they have both roles.
-const clubMenuItems = [
-  { id: 'clubDashboard', label: 'Club Dashboard', icon: '🎓', screen: 'ClubDashboard' },
-  { id: 'clubMembership', label: 'Membership', icon: '✅', screen: 'ClubMembership' },
-  { id: 'clubActivities', label: 'Club Activities', icon: '🎯', screen: 'ClubActivities' },
-  { id: 'myActivities', label: 'My Activities', icon: '📅', screen: 'MyActivities' },
-  { id: 'clubLeadership', label: 'Leadership & Meetings', icon: '👥', screen: 'ClubLeadership' },
-  { id: 'applyLeadership', label: 'Apply for Leadership', icon: '🏅', screen: 'ApplyLeadership' },
-  { id: 'clubResources', label: 'Club Resources', icon: '📚', screen: 'ClubResources' },
-  { type: 'divider' },
-  { id: 'innovatorDashboard', label: 'Innovation Dashboard', icon: '📊', screen: 'Dashboard' },
-  { id: 'myProjects', label: 'My Projects', icon: '📁', screen: 'MyProjects' },
-  { id: 'browseOpportunities', label: 'Browse Opportunities', icon: '🔍', screen: 'BrowseOpportunities' },
-  { id: 'myApplications', label: 'My Applications', icon: '📝', screen: 'MyApplications' },
-  { id: 'settings', label: 'Settings', icon: '⚙️', screen: 'Settings' },
-];
-
-export default function Sidebar({ activeScreen, onNavigate, onClose, navigation, userType = 'innovator', isClubMember = false }) {
+export default function Sidebar({ activeScreen, onNavigate, onClose, navigation, userType = 'innovator' }) {
   const { user, signOut } = useAuth();
 
-  // If the user has joined the club, always show the club menu — even
-  // when the screen that opened the Sidebar was the Innovator Dashboard.
-  // This is what makes a single login serve both modules.
+  // Two menus: innovator and funder. Club members/leaders authenticate
+  // through the same register/login screen but route to a separate stack
+  // (Phase 7 — wired later), so the Sidebar doesn't render a club menu.
   const menuItems =
-    userType === 'funder' ? funderMenuItems :
-    (userType === 'clubMember' || isClubMember) ? clubMenuItems :
-    innovatorMenuItems;
+    userType === 'funder' ? funderMenuItems : innovatorMenuItems;
 
   const handlePress = (item) => {
     onNavigate(item.id);
@@ -135,9 +113,7 @@ export default function Sidebar({ activeScreen, onNavigate, onClose, navigation,
             <View>
               <Text style={styles.logoTitle}>Innovation Hub</Text>
               <Text style={styles.logoSubtitle}>
-                {userType === 'funder' ? 'Funder Portal'
-                  : (userType === 'clubMember' || isClubMember) ? 'Club Member Portal'
-                  : 'Innovator Portal'}
+                {userType === 'funder' ? 'Funder Portal' : 'Innovator Portal'}
               </Text>
             </View>
           </View>
@@ -152,31 +128,26 @@ export default function Sidebar({ activeScreen, onNavigate, onClose, navigation,
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.menuContent}
         >
-          {menuItems.map((item, idx) => {
-            if (item.type === 'divider') {
-              return <View key={`div-${idx}`} style={styles.menuDivider} />;
-            }
-            return (
-              <TouchableOpacity
-                key={item.id}
+          {menuItems.map((item) => (
+            <TouchableOpacity
+              key={item.id}
+              style={[
+                styles.menuItem,
+                activeScreen === item.id && styles.menuItemActive,
+              ]}
+              onPress={() => handlePress(item)}
+            >
+              <Text style={styles.menuIcon}>{item.icon}</Text>
+              <Text
                 style={[
-                  styles.menuItem,
-                  activeScreen === item.id && styles.menuItemActive,
+                  styles.menuLabel,
+                  activeScreen === item.id && styles.menuLabelActive,
                 ]}
-                onPress={() => handlePress(item)}
               >
-                <Text style={styles.menuIcon}>{item.icon}</Text>
-                <Text
-                  style={[
-                    styles.menuLabel,
-                    activeScreen === item.id && styles.menuLabelActive,
-                  ]}
-                >
-                  {item.label}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
+                {item.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
         </ScrollView>
 
         {/* Footer - Fixed at bottom */}
@@ -278,12 +249,6 @@ const styles = StyleSheet.create({
   },
   menuContent: {
     paddingVertical: 20,
-  },
-  menuDivider: {
-    height: 1,
-    backgroundColor: colors.border,
-    marginVertical: 12,
-    marginHorizontal: 20,
   },
   menuItem: {
     flexDirection: 'row',

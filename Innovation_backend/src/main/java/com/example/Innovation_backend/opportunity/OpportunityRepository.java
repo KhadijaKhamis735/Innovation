@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
 import java.util.List;
 
 @Repository
@@ -31,4 +32,25 @@ public interface OpportunityRepository extends JpaRepository<Opportunity, Long> 
      */
     @Query("SELECT o FROM Opportunity o WHERE o.status = :status ORDER BY o.createdAt DESC")
     List<Opportunity> findAllForAdminByStatus(@Param("status") OpportunityStatus status);
+
+    /**
+     * Phase 5 — bulk applicant count for owner-scoped lists.
+     *
+     * <p>Returns {@code [opportunityId, count]} pairs for every opportunity in
+     * {@code opportunityIds}. Missing ids (e.g. a freshly created opportunity
+     * with zero applications) are simply absent from the result map; the
+     * service fills them with {@code 0L}.
+     *
+     * <p>Implemented as a JPQL projection so the count runs as one grouped
+     * SQL query against the {@code applications} table, instead of N+1
+     * per-opportunity lookups. Used by
+     * {@link OpportunityService#listMine(String)}.
+     */
+    @Query("""
+           SELECT a.opportunity.id, COUNT(a)
+             FROM Application a
+            WHERE a.opportunity.id IN :opportunityIds
+            GROUP BY a.opportunity.id
+           """)
+    List<Object[]> countApplicationsByOpportunityIds(@Param("opportunityIds") Collection<Long> opportunityIds);
 }

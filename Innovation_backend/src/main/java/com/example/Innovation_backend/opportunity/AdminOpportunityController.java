@@ -6,6 +6,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -33,9 +34,15 @@ public class AdminOpportunityController {
     /**
      * List all opportunities. Pass {@code ?status=open} to narrow by status.
      * No body / no audit metadata — this is a read-only moderation queue.
+     *
+     * {@code @Transactional(readOnly = true)} is REQUIRED here: {@code toResponse}
+     * lazy-loads {@code funder} and looks up the funder's organization name — both
+     * need an open Hibernate session, and without this annotation the controller
+     * method runs outside a transaction, producing a 500 on every call.
      */
     @GetMapping
     @PreAuthorize("hasRole('ADMIN')")
+    @Transactional(readOnly = true)
     public List<OpportunityResponse> list(
             @RequestParam(name = "status", required = false) OpportunityStatus status) {
         // We reuse the public-facing toResponse formatter for consistency with

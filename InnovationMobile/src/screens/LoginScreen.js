@@ -10,23 +10,18 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
-  useWindowDimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { colors } from '../styles/colors';
 import { useAuth } from '../context/AuthContext';
 
 export default function LoginScreen({ navigation }) {
-  const { width } = useWindowDimensions();
   const { signIn } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  // The visible toggle is a UI hint only — the backend role is
-  // authoritative for routing after sign-in.
-  const [role, setRole] = useState('innovator');
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -53,207 +48,216 @@ export default function LoginScreen({ navigation }) {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.keyboardView}
-      >
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.scrollContent}
-          keyboardShouldPersistTaps="handled"
+    <LinearGradient
+      colors={['#ff8a3d', '#f97316', '#7c3aed', '#1e1b4b']}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={styles.gradient}
+    >
+      <SafeAreaView style={styles.safe}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.keyboardView}
         >
-          {/* Brand header — compact, single line */}
-          <LinearGradient
-            colors={['#1a1a2e', '#2d1f0f', '#1a1a2e']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.brandHeader}
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.scrollContent}
+            keyboardShouldPersistTaps="handled"
           >
-            <TouchableOpacity
-              onPress={() => navigation.navigate('Landing')}
-              style={styles.brand}
-            >
-              <LinearGradient
-                colors={[colors.primary, colors.primaryDark]}
-                style={styles.brandLogo}
-              >
-                <Text style={styles.brandLogoIcon}>⚡</Text>
-              </LinearGradient>
-              <View>
-                <Text style={styles.brandName}>Innovation Management</Text>
-                <Text style={styles.brandTagline}>Welcome back to your innovation hub</Text>
-              </View>
-            </TouchableOpacity>
-          </LinearGradient>
-
-          {/* Form section */}
-          <View style={styles.formSection}>
-            <Text style={styles.formHeading}>Sign in</Text>
-            <Text style={styles.formSubheading}>
-              Enter your credentials to access your dashboard.
-            </Text>
-
-            {/* Role toggle */}
-            <View style={styles.roleToggle}>
-              {['innovator', 'funder'].map((r) => (
-                <TouchableOpacity
-                  key={r}
-                  style={[styles.roleBtn, role === r && styles.roleBtnActive]}
-                  onPress={() => setRole(r)}
+            <View style={styles.card}>
+              {/* Brand row inside the card */}
+              <View style={styles.brandRow}>
+                <LinearGradient
+                  colors={[colors.primary, colors.primaryDark]}
+                  style={styles.brandLogo}
                 >
-                  <Text style={[styles.roleBtnText, role === r && styles.roleBtnTextActive]}>
-                    {r.charAt(0).toUpperCase() + r.slice(1)}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            {error ? (
-              <View style={styles.errorBox}>
-                <Text style={styles.errorText}>{error}</Text>
-              </View>
-            ) : null}
-
-            {/* Email */}
-            <View style={styles.formGroup}>
-              <Text style={styles.formLabel}>Email address</Text>
-              <TextInput
-                style={styles.formInput}
-                placeholder="you@example.com"
-                placeholderTextColor={colors.textMuted}
-                value={email}
-                onChangeText={setEmail}
-                autoCapitalize="none"
-                keyboardType="email-address"
-                autoComplete="email"
-              />
-            </View>
-
-            {/* Password */}
-            <View style={styles.formGroup}>
-              <View style={styles.labelRow}>
-                <Text style={styles.formLabel}>Password</Text>
-                <TouchableOpacity>
-                  <Text style={styles.forgotLink}>Forgot Password?</Text>
-                </TouchableOpacity>
-              </View>
-              <View style={styles.passwordWrapper}>
-                <TextInput
-                  style={[styles.formInput, styles.passwordInput]}
-                  placeholder="Enter your password"
-                  placeholderTextColor={colors.textMuted}
-                  value={password}
-                  onChangeText={setPassword}
-                  secureTextEntry={!showPassword}
-                  autoComplete="current-password"
-                />
-                <TouchableOpacity
-                  style={styles.eyeBtn}
-                  onPress={() => setShowPassword(!showPassword)}
-                >
-                  <Text style={styles.eyeIcon}>{showPassword ? '🙈' : '👁️'}</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            {/* Submit */}
-            <TouchableOpacity
-              style={[styles.submitBtn, loading && styles.submitBtnDisabled]}
-              onPress={handleLogin}
-              disabled={loading}
-              activeOpacity={0.85}
-            >
-              {loading ? (
-                <View style={styles.loadingRow}>
-                  <ActivityIndicator color={colors.white} size="small" />
-                  <Text style={styles.submitBtnText}>Signing in...</Text>
+                  <Text style={styles.brandLogoIcon}>⚡</Text>
+                </LinearGradient>
+                <View style={styles.brandText}>
+                  <Text style={styles.brandName}>Innovation Management</Text>
+                  <Text style={styles.brandTagline}>Welcome back to your innovation hub</Text>
                 </View>
-              ) : (
-                <Text style={styles.submitBtnText}>Sign In</Text>
-              )}
-            </TouchableOpacity>
+              </View>
 
-            <View style={styles.footerLinks}>
-              <Text style={styles.switchText}>
-                Don't have an account?{' '}
-                <Text
-                  style={styles.switchLink}
-                  onPress={() => navigation.navigate('Register')}
-                >
-                  Create one
-                </Text>
+              <Text style={styles.formHeading}>Sign in</Text>
+              <Text style={styles.formSubheading}>
+                Enter your credentials to access your dashboard.
               </Text>
 
-              <Text style={styles.adminLinkText}>Admin Login</Text>
+              {error ? (
+                <View style={styles.errorBox}>
+                  <Text style={styles.errorText}>{error}</Text>
+                </View>
+              ) : null}
+
+              {/* Email */}
+              <View style={styles.formGroup}>
+                <Text style={styles.formLabel}>Email address</Text>
+                <View style={styles.inputWrapper}>
+                  <Text style={styles.inputIcon}>✉</Text>
+                  <TextInput
+                    style={styles.formInput}
+                    placeholder="you@example.com"
+                    placeholderTextColor={colors.textMuted}
+                    value={email}
+                    onChangeText={setEmail}
+                    autoCapitalize="none"
+                    keyboardType="email-address"
+                    autoComplete="email"
+                  />
+                </View>
+              </View>
+
+              {/* Password */}
+              <View style={styles.formGroup}>
+                <View style={styles.labelRow}>
+                  <Text style={styles.formLabel}>Password</Text>
+                  <TouchableOpacity
+                    onPress={() => navigation.navigate('ForgotPassword')}
+                    accessibilityRole="button"
+                    accessibilityLabel="Forgot password"
+                  >
+                    <Text style={styles.forgotLink}>Forgot Password?</Text>
+                  </TouchableOpacity>
+                </View>
+                <View style={styles.inputWrapper}>
+                  <Text style={styles.inputIcon}>🔒</Text>
+                  <TextInput
+                    style={[styles.formInput, styles.passwordInput]}
+                    placeholder="Enter your password"
+                    placeholderTextColor={colors.textMuted}
+                    value={password}
+                    onChangeText={setPassword}
+                    secureTextEntry={!showPassword}
+                    autoComplete="current-password"
+                  />
+                  <TouchableOpacity
+                    style={styles.eyeBtn}
+                    onPress={() => setShowPassword(!showPassword)}
+                    accessibilityRole="button"
+                    accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
+                  >
+                    <Text style={styles.eyeIcon}>{showPassword ? '🙈' : '👁️'}</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              {/* Submit */}
+              <TouchableOpacity
+                style={[styles.submitBtn, loading && styles.submitBtnDisabled]}
+                onPress={handleLogin}
+                disabled={loading}
+                activeOpacity={0.85}
+              >
+                <LinearGradient
+                  colors={[colors.primary, colors.primaryDark]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.submitGradient}
+                >
+                  {loading ? (
+                    <View style={styles.loadingRow}>
+                      <ActivityIndicator color={colors.white} size="small" />
+                      <Text style={styles.submitBtnText}>Signing in...</Text>
+                    </View>
+                  ) : (
+                    <Text style={styles.submitBtnText}>Sign In →</Text>
+                  )}
+                </LinearGradient>
+              </TouchableOpacity>
+
+              <View style={styles.footerLinks}>
+                <Text style={styles.switchText}>
+                  Don't have an account?{' '}
+                  <Text
+                    style={styles.switchLink}
+                    onPress={() => navigation.navigate('Register')}
+                  >
+                    Create one
+                  </Text>
+                </Text>
+
+                <TouchableOpacity onPress={() => navigation.navigate('AdminLogin')}>
+                  <Text style={styles.adminLinkText}>Admin Login</Text>
+                </TouchableOpacity>
+              </View>
             </View>
-          </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  gradient: {
     flex: 1,
-    backgroundColor: colors.white,
+  },
+  safe: {
+    flex: 1,
   },
   keyboardView: {
     flex: 1,
   },
   scrollContent: {
     flexGrow: 1,
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 32,
   },
 
-  /* Brand header — compact, single line of branding info */
-  brandHeader: {
-    paddingTop: 24,
-    paddingBottom: 24,
-    paddingHorizontal: 20,
+  /* Card */
+  card: {
+    backgroundColor: colors.white,
+    borderRadius: 24,
+    padding: 28,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.18,
+    shadowRadius: 28,
+    elevation: 10,
   },
-  brand: {
+
+  /* Brand row */
+  brandRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    marginBottom: 24,
   },
   brandLogo: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
+    width: 48,
+    height: 48,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
   },
   brandLogoIcon: {
     color: colors.white,
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: '700',
+  },
+  brandText: {
+    flex: 1,
   },
   brandName: {
-    color: colors.white,
-    fontWeight: '700',
-    fontSize: 16,
+    color: colors.textPrimary,
+    fontWeight: '800',
+    fontSize: 17,
+    letterSpacing: -0.2,
   },
   brandTagline: {
-    color: '#cbd5e1',
+    color: colors.textSecondary,
     fontSize: 12,
     marginTop: 2,
   },
 
-  /* Form section — takes the rest of the page, properly centered */
-  formSection: {
-    width: '100%',
-    maxWidth: 480,
-    alignSelf: 'center',
-    paddingHorizontal: 24,
-    paddingTop: 32,
-    paddingBottom: 32,
-  },
+  /* Form heading */
   formHeading: {
-    fontSize: 28,
+    fontSize: 26,
     fontWeight: '800',
     color: colors.textPrimary,
-    marginBottom: 6,
+    marginBottom: 4,
     letterSpacing: -0.5,
   },
   formSubheading: {
@@ -261,39 +265,6 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginBottom: 24,
     lineHeight: 20,
-  },
-
-  /* Role toggle */
-  roleToggle: {
-    flexDirection: 'row',
-    backgroundColor: colors.white,
-    borderRadius: 14,
-    padding: 5,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(0, 0, 0, 0.08)',
-  },
-  roleBtn: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 10,
-    alignItems: 'center',
-  },
-  roleBtnActive: {
-    backgroundColor: colors.primary,
-    shadowColor: '#f97316',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
-    elevation: 2,
-  },
-  roleBtnText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.textSecondary,
-  },
-  roleBtnTextActive: {
-    color: colors.white,
   },
 
   /* Error */
@@ -326,31 +297,33 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#374151',
   },
-  formInput: {
+  inputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
     borderWidth: 1.5,
     borderColor: colors.border,
     borderRadius: 12,
+    backgroundColor: colors.white,
+    paddingHorizontal: 14,
+  },
+  inputIcon: {
+    fontSize: 16,
+    color: colors.textSecondary,
+    marginRight: 10,
+  },
+  formInput: {
+    flex: 1,
     paddingVertical: 14,
-    paddingHorizontal: 16,
     fontSize: 14,
     color: colors.textPrimary,
-    backgroundColor: colors.white,
-    width: '100%',
-  },
-  passwordWrapper: {
-    position: 'relative',
-    justifyContent: 'center',
+    backgroundColor: 'transparent',
   },
   passwordInput: {
-    paddingRight: 48,
+    paddingRight: 8,
   },
   eyeBtn: {
-    position: 'absolute',
-    right: 6,
-    top: 0,
-    bottom: 0,
-    justifyContent: 'center',
-    paddingHorizontal: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
   },
   eyeIcon: {
     fontSize: 18,
@@ -363,20 +336,22 @@ const styles = StyleSheet.create({
 
   /* Submit */
   submitBtn: {
-    backgroundColor: colors.primary,
-    paddingVertical: 15,
     borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
+    overflow: 'hidden',
     marginTop: 8,
     shadowColor: '#f97316',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 14,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 16,
+    elevation: 5,
   },
   submitBtnDisabled: {
-    opacity: 0.65,
+    opacity: 0.7,
+  },
+  submitGradient: {
+    paddingVertical: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   loadingRow: {
     flexDirection: 'row',

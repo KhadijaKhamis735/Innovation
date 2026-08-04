@@ -16,13 +16,16 @@ import java.util.List;
  * Funder-owner (or admin) endpoints for viewing applicants and moving their stages.
  *
  *   GET   /api/opportunities/{id}/applicants      → list all applicants for an opportunity
+ *   GET   /api/applications/received                → funder-wide applicant aggregate (Phase 6)
  *   PATCH /api/applications/{id}/stage              → move an applicant to a new stage
  *
- * Both routes require the caller to be either the owner of the underlying
+ * All routes require the caller to be either the owner of the underlying
  * opportunity or an admin; the service layer enforces that.
  *
  * Path convention follows plan §4.3:
- *   - Applicants are listed under the opportunity (resource-scoped).
+ *   - The per-opportunity applicants read stays under the opportunity (resource-scoped).
+ *   - The funder-wide aggregate is under /api/applications/* (matches the
+ *     innovator's "GET /api/applications/me" surface).
  *   - Stage moves are under the application itself.
  *
  * Phase 6B — stage PATCH is gated by {@link WriteGuard}; admin bypasses.
@@ -38,6 +41,19 @@ public class ApplicantController {
     @PreAuthorize("hasAnyRole('FUNDER','ADMIN')")
     public List<ApplicationResponse> listApplicants(@PathVariable Long opportunityId) {
         return applicationService.listApplicants(opportunityId, currentEmail());
+    }
+
+    /**
+     * Phase 6 — funder-wide aggregate. Returns every application across every
+     * opportunity owned by the authenticated funder (admin sees all), newest
+     * first. Replaces the per-opportunity fan-out the web client used to do
+     * and is the single source of truth for both clients' "Received
+     * Applications" view.
+     */
+    @GetMapping("/api/applications/received")
+    @PreAuthorize("hasAnyRole('FUNDER','ADMIN')")
+    public List<ApplicationResponse> listReceived() {
+        return applicationService.listReceived(currentEmail());
     }
 
     @PatchMapping("/api/applications/{id}/stage")

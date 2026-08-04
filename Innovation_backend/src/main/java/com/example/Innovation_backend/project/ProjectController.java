@@ -1,6 +1,7 @@
 package com.example.Innovation_backend.project;
 
 import com.example.Innovation_backend.auth.WriteGuard;
+import com.example.Innovation_backend.project.attachment.ProjectAttachmentRepository;
 import com.example.Innovation_backend.project.dto.MilestoneRequest;
 import com.example.Innovation_backend.project.dto.MilestoneResponse;
 import com.example.Innovation_backend.project.dto.ProjectRequest;
@@ -45,6 +46,7 @@ public class ProjectController {
     private final ProjectService projectService;
     private final MilestoneService milestoneService;
     private final WriteGuard writeGuard;
+    private final ProjectAttachmentRepository attachmentRepo;
 
     // ── Project CRUD ────────────────────────────────────────────────
 
@@ -65,7 +67,7 @@ public class ProjectController {
     @GetMapping("/api/projects/{id}")
     @PreAuthorize("isAuthenticated()")
     public ProjectResponse getOne(@PathVariable Long id) {
-        return projectService.getOne(id, currentEmail());
+        return projectService.getOne(id, currentEmail(), attachmentRepo);
     }
 
     @PutMapping("/api/projects/{id}")
@@ -99,6 +101,11 @@ public class ProjectController {
     public ProjectResponse addMilestone(@PathVariable Long id,
                                         @Valid @RequestBody MilestoneRequest req) {
         writeGuard.requireVerified();
+        // POST requires a non-blank name. PATCH may omit it for partial
+        // updates — see MilestoneRequest javadoc.
+        if (req.name() == null || req.name().isBlank()) {
+            throw new IllegalArgumentException("name must not be blank");
+        }
         return milestoneService.add(id, req, currentEmail());
     }
 

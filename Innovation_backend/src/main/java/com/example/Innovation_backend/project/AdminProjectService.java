@@ -1,5 +1,6 @@
 package com.example.Innovation_backend.project;
 
+import com.example.Innovation_backend.project.attachment.ProjectAttachmentRepository;
 import com.example.Innovation_backend.project.dto.ProjectResponse;
 import com.example.Innovation_backend.user.Role;
 import com.example.Innovation_backend.user.User;
@@ -18,6 +19,10 @@ import java.util.List;
  *
  * CLUB-surface projects are intentionally excluded — they have no ZSA approval
  * workflow, and admin tools only need to see INNOVATION rows.
+ *
+ * Every response carries the project's {@code evidence} list (EVIDENCE-kind
+ * attachments, oldest first) so the admin moderation UI can show what the
+ * innovator actually attached at PROTOTYPE / MVP transitions.
  */
 @Service
 @RequiredArgsConstructor
@@ -26,13 +31,14 @@ public class AdminProjectService {
     private final ProjectRepository projectRepo;
     private final UserRepository userRepo;
     private final ZsaIdGenerator zsaIdGenerator;
+    private final ProjectAttachmentRepository attachmentRepo;
 
     @Transactional(readOnly = true)
     public List<ProjectResponse> listByStatus(ProjectApprovalStatus status, String adminEmail) {
         mustBeAdmin(adminEmail);
         return projectRepo.findAllInnovationByApprovalStatus(status)
                 .stream()
-                .map(ProjectResponse::fromEntity)
+                .map(p -> ProjectResponse.fromEntity(p, attachmentRepo))
                 .toList();
     }
 
@@ -65,7 +71,7 @@ public class AdminProjectService {
 
         p.setZsaId(candidate);
         p.setApprovalStatus(ProjectApprovalStatus.APPROVED);
-        return ProjectResponse.fromEntity(projectRepo.save(p));
+        return ProjectResponse.fromEntity(projectRepo.save(p), attachmentRepo);
     }
 
     @Transactional
@@ -78,7 +84,7 @@ public class AdminProjectService {
                     "Only innovation projects can be rejected; this is " + p.getSurface().json());
         }
         p.setApprovalStatus(ProjectApprovalStatus.REJECTED);
-        return ProjectResponse.fromEntity(projectRepo.save(p));
+        return ProjectResponse.fromEntity(projectRepo.save(p), attachmentRepo);
     }
 
     @Transactional
@@ -100,7 +106,7 @@ public class AdminProjectService {
             }
             p.setZsaId(trimmed);
         }
-        return ProjectResponse.fromEntity(projectRepo.save(p));
+        return ProjectResponse.fromEntity(projectRepo.save(p), attachmentRepo);
     }
 
     private void mustBeAdmin(String email) {

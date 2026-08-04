@@ -11,9 +11,10 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 import java.time.Instant;
 
 /**
- * Evidence (or other) attachment for a project. The file itself lives under
- * {@code {innovation.storage.root}/{storage_path}}; this row only carries
- * metadata + a relative path string.
+ * Evidence (or other) attachment for a project. Evidence is either an
+ * uploaded file — living under {@code {innovation.storage.root}/{storage_path}},
+ * with this row carrying only metadata + a relative path string — or an
+ * external {@code link_url} (Phase 7). Exactly one of the two is set.
  *
  * Exactly one of {@code uploadedByUser} / {@code uploadedByMember} is set,
  * matching the surface of the parent project. The CHECK constraint on
@@ -42,9 +43,20 @@ public class ProjectAttachment {
     @Column(name = "original_filename", nullable = false, length = 240)
     private String originalFilename;
 
-    /** Relative path under the storage root — what {@link StorageProvider} reads/writes. */
-    @Column(name = "storage_path", nullable = false, length = 512)
+    /**
+     * Relative path under the storage root — what {@link StorageProvider} reads/writes.
+     * Null for link attachments (see {@link #linkUrl}).
+     */
+    @Column(name = "storage_path", length = 512)
     private String storagePath;
+
+    /**
+     * External evidence URL (http/https only). Null for file attachments.
+     * Exactly one of {@code storagePath} / {@code linkUrl} is set — enforced by
+     * {@code chk_attachments_payload} (see V8__attachment_links.sql).
+     */
+    @Column(name = "link_url", length = 2048)
+    private String linkUrl;
 
     @Column(name = "mime_type", length = 120)
     private String mimeType;

@@ -7,6 +7,11 @@ import com.example.Innovation_backend.user.User;
  * Public user projection. NEVER includes the password.
  * The `role` field serializes lowercase via the Role enum's @JsonValue.
  * The `name` field is the convenience fullName the frontend already uses.
+ *
+ * Phase 7 — extended with notification preference booleans (email/push ×
+ * applications/updates/reminders) so the Settings screen can render the
+ * current state without a second call + so the PATCH response reflects
+ * exactly what was persisted.
  */
 public record UserResponse(
         Long id,
@@ -21,7 +26,13 @@ public record UserResponse(
         String bio,
         String location,
         String avatarUrl,
-        boolean emailVerified
+        boolean emailVerified,
+        boolean emailApplications,
+        boolean emailUpdates,
+        boolean emailReminders,
+        boolean pushApplications,
+        boolean pushUpdates,
+        boolean pushReminders
 ) {
     public static UserResponse fromEntity(User u) {
         return new UserResponse(
@@ -37,7 +48,13 @@ public record UserResponse(
                 u.getBio(),
                 u.getLocation(),
                 u.getAvatarUrl(),
-                u.isEmailVerified()
+                u.isEmailVerified(),
+                u.isEmailApplications(),
+                u.isEmailUpdates(),
+                u.isEmailReminders(),
+                u.isPushApplications(),
+                u.isPushUpdates(),
+                u.isPushReminders()
         );
     }
 }

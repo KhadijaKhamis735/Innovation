@@ -35,6 +35,13 @@ public class MilestoneService {
     public ProjectResponse add(Long projectId, MilestoneRequest req, String email) {
         ProjectEntity project = loadOwned(projectId, email);
 
+        // Defence in depth: the controller also checks this so the
+        // service is safe to call from non-HTTP entrypoints (e.g. tests,
+        // migrations, future jobs).
+        if (req.name() == null || req.name().isBlank()) {
+            throw new IllegalArgumentException("name must not be blank");
+        }
+
         int nextPos = project.getMilestones().size();
         Milestone m = Milestone.builder()
                 .project(project)

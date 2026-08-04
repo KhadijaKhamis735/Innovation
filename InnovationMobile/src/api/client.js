@@ -105,6 +105,43 @@ function getOrStartRefresh() {
   return inflightRefresh;
 }
 
+// ── Shared refresh pipeline ────────────────────────────────────
+// All three exposed calls (apiRequest / apiUpload / apiDownload)
+// share the same single-flight refresh + one-retry pipeline via
+// withRefreshRetry. Concurrent 401s share one in-flight refresh.
+
+/**
+ * Run `doFetch(token)` once; on a 401 with auth enabled, run a
+ * single-flight refresh and retry once. The returned Response is
+ * never consumed by this helper — callers parse the body in the
+ * shape they need (JSON / Blob / text).
+ */
+async function withRefreshRetry(doFetch, { auth }) {
+  let token = auth ? await tokenAdapter.readAccess() : null;
+  let res;
+  try {
+    res = await doFetch(token);
+  } catch (e) {
+    throw new ApiError({ status: 0, message: 'Network error', cause: e });
+  }
+
+  if (res.status === 401 && auth) {
+    try {
+      token = await getOrStartRefresh();
+    } catch (refreshErr) {
+      throw refreshErr instanceof ApiError
+        ? refreshErr
+        : new ApiError({ status: 401, message: 'Refresh failed', cause: refreshErr });
+    }
+    try {
+      res = await doFetch(token);
+    } catch (e) {
+      throw new ApiError({ status: 0, message: 'Network error', cause: e });
+    }
+  }
+  return res;
+}
+
 // ── Core request ───────────────────────────────────────────────
 
 /**
@@ -126,39 +163,14 @@ export async function apiRequest(path, { method = 'GET', body, auth = true } = {
     const headers = { Accept: 'application/json' };
     if (body !== undefined) headers['Content-Type'] = 'application/json';
     if (auth && token) headers.Authorization = `Bearer ${token}`;
-    const res = await fetch(url, {
+    return fetch(url, {
       method,
       headers,
       body: body !== undefined ? JSON.stringify(body) : undefined,
     });
-    return res;
   };
 
-  let token = auth ? await tokenAdapter.readAccess() : null;
-  let res;
-  try {
-    res = await doFetch(token);
-  } catch (e) {
-    throw new ApiError({ status: 0, message: 'Network error', cause: e });
-  }
-
-  if (res.status === 401 && auth) {
-    // Try one refresh, then one retry. Concurrent 401s share the
-    // single in-flight refresh via getOrStartRefresh().
-    try {
-      token = await getOrStartRefresh();
-    } catch (refreshErr) {
-      throw refreshErr instanceof ApiError
-        ? refreshErr
-        : new ApiError({ status: 401, message: 'Refresh failed', cause: refreshErr });
-    }
-    try {
-      res = await doFetch(token);
-    } catch (e) {
-      throw new ApiError({ status: 0, message: 'Network error', cause: e });
-    }
-  }
-
+  const res = await withRefreshRetry(doFetch, { auth });
   return parseResponse(res);
 }
 
@@ -181,30 +193,85 @@ export async function apiUpload(path, formData, { auth = true } = {}) {
     return fetch(url, { method: 'POST', headers, body: formData });
   };
 
-  let token = auth ? await tokenAdapter.readAccess() : null;
-  let res;
-  try {
-    res = await doFetch(token);
-  } catch (e) {
-    throw new ApiError({ status: 0, message: 'Network error', cause: e });
-  }
-
-  if (res.status === 401 && auth) {
-    try {
-      token = await getOrStartRefresh();
-    } catch (refreshErr) {
-      throw refreshErr instanceof ApiError
-        ? refreshErr
-        : new ApiError({ status: 401, message: 'Refresh failed', cause: refreshErr });
-    }
-    try {
-      res = await doFetch(token);
-    } catch (e) {
-      throw new ApiError({ status: 0, message: 'Network error', cause: e });
-    }
-  }
-
+  const res = await withRefreshRetry(doFetch, { auth });
   return parseResponse(res);
+}
+
+// ── Authenticated download (Phase 4) ────────────────────────────
+
+/**
+ * Authenticated GET that returns the response body as a Blob plus
+ * the headers callers need to render it (Content-Type, Content-Length,
+ * RFC 5987 Content-Disposition filename). Used by the EvidencePanel
+ * to fetch project attachments.
+ *
+ * @param {string} path
+ * @param {object} [opts]
+ * @returns {Promise<{
+ *   blob: Blob,
+ *   contentType: string,
+ *   contentLength: number | null,
+ *   contentDisposition: string | null,
+ *   filename: string | null,
+ * }>}
+ */
+export async function apiDownload(path, { auth = true } = {}) {
+  const url = resolveUrl(path);
+  const doFetch = async (token) => {
+    const headers = { Accept: '*/*' };
+    if (auth && token) headers.Authorization = `Bearer ${token}`;
+    return fetch(url, { method: 'GET', headers });
+  };
+
+  const res = await withRefreshRetry(doFetch, { auth });
+  if (!res.ok) {
+    // Mirror parseResponse's ApiError shape for non-2xx responses,
+    // but we may not have a JSON body — try to parse, fall back.
+    let body = null;
+    try { body = await res.json(); } catch { /* not JSON */ }
+    throw new ApiError({
+      status: res.status,
+      message: body?.message ?? res.statusText ?? 'Download failed',
+      code: body?.code,
+    });
+  }
+
+  const contentType = res.headers.get('Content-Type') || 'application/octet-stream';
+  const contentLength = parseContentLength(res.headers.get('Content-Length'));
+  const contentDisposition = res.headers.get('Content-Disposition');
+  const blob = await res.blob();
+  return {
+    blob,
+    contentType,
+    contentLength,
+    contentDisposition,
+    filename: parseContentDispositionFilename(contentDisposition),
+  };
+}
+
+function parseContentLength(header) {
+  if (!header) return null;
+  const n = Number(header);
+  return Number.isFinite(n) ? n : null;
+}
+
+/**
+ * Best-effort RFC 5987 filename extraction. Looks for either the
+ * legacy `filename=...` or the modern `filename*=UTF-8''...` form.
+ * Returns null if neither is present.
+ */
+export function parseContentDispositionFilename(header) {
+  if (!header) return null;
+  // RFC 5987: filename*=UTF-8''<percent-encoded>
+  const ext = /filename\*\s*=\s*[^']*''([^;]+)/i.exec(header);
+  if (ext) {
+    try { return decodeURIComponent(ext[1].trim().replace(/^"|"$/g, '')); }
+    catch { /* fall through */ }
+  }
+  // Legacy: filename="..." or filename=...
+  const legacy = /filename\s*=\s*("([^"]+)"|([^;]+))/i.exec(header);
+  if (legacy) return (legacy[2] ?? legacy[3] ?? '').trim();
+  return null;
 }
 
 // ── helpers ────────────────────────────────────────────────────
@@ -261,5 +328,11 @@ export const authApi = {
   }),
   resendVerification: () => apiRequest('/api/mobile/auth/resend-verification', {
     method: 'POST',
+  }),
+  // Email-bodied resend for users who closed the app right after registering
+  // and have no session. Always returns 202 — same anti-enumeration contract
+  // as forgot-password. Used by CheckEmailScreen.
+  resendVerificationByEmail: (email) => apiRequest('/api/mobile/auth/resend-verification-by-email', {
+    method: 'POST', body: { email }, auth: false,
   }),
 };

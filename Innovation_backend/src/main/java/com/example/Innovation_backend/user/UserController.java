@@ -1,6 +1,8 @@
 package com.example.Innovation_backend.user;
 
+import com.example.Innovation_backend.user.dto.UpdateProfileRequest;
 import com.example.Innovation_backend.user.dto.UserResponse;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -25,6 +27,17 @@ public class UserController {
     public UserResponse me(@AuthenticationPrincipal UserDetails principal) {
         User u = userService.findByEmail(principal.getUsername());
         return UserResponse.fromEntity(u);
+    }
+
+    /**
+     * Phase 7 — apply a partial profile update to the authenticated user.
+     * All fields are optional (PATCH semantics); only non-null values are
+     * persisted. Email and role are intentionally NOT modifiable here.
+     */
+    @PatchMapping("/me")
+    public UserResponse updateMe(@AuthenticationPrincipal UserDetails principal,
+                                 @Valid @RequestBody UpdateProfileRequest req) {
+        return userService.updateProfile(principal.getUsername(), req);
     }
 
     /** Health-check style endpoint for debugging roles. */

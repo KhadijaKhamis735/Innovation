@@ -5,6 +5,7 @@ import com.example.Innovation_backend.club.ClubAccessChecks;
 import com.example.Innovation_backend.club.ClubMember;
 import com.example.Innovation_backend.club.ClubRepository;
 import com.example.Innovation_backend.club.MembershipStatus;
+import com.example.Innovation_backend.project.attachment.AttachmentKind;
 import com.example.Innovation_backend.project.attachment.ProjectAttachment;
 import com.example.Innovation_backend.project.attachment.ProjectAttachmentRepository;
 import com.example.Innovation_backend.project.attachment.StorageProvider;
@@ -73,10 +74,21 @@ public class ProjectService {
 
     @Transactional(readOnly = true)
     public ProjectResponse getOne(Long id, String email) {
+        return getOne(id, email, null);
+    }
+
+    /**
+     * Variant that surfaces the project's EVIDENCE attachments. The repository
+     * arg is nullable for backwards compatibility with internal callers that
+     * don't care (e.g. write-path callers that ignore {@code evidence}).
+     */
+    @Transactional(readOnly = true)
+    public ProjectResponse getOne(Long id, String email,
+                                   ProjectAttachmentRepository attachmentRepo) {
         ProjectEntity p = projectRepo.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Project not found: " + id));
         enforceReadVisibility(p, email);
-        return ProjectResponse.fromEntity(p);
+        return ProjectResponse.fromEntity(p, attachmentRepo);
     }
 
     /**
@@ -199,11 +211,46 @@ public class ProjectService {
         }
     }
 
+    /**
+     * Move a project to a new phase.
+     *
+     * Evidence gate: PROTOTYPE and MVP are the phases where a project claims
+     * something exists, so they require at least one piece of evidence — an
+     * uploaded file or a link — already attached to the project. The remaining
+     * phases (IDEA, PROPOSAL, SCALING) are unrestricted.
+     *
+     * Enforced here rather than only in the UI so the rule also holds for the
+     * mobile client and any direct API caller.
+     */
     @Transactional
     public ProjectResponse updatePhase(Long id, ProjectPhase phase, String email) {
         ProjectEntity p = loadOwned(id, email);
+        requireEvidenceFor(id, phase);
         p.setPhase(phase);
-        return ProjectResponse.fromEntity(projectRepo.save(p));
+        return ProjectResponse.fromEntity(projectRepo.save(p), attachmentRepo);
+    }
+
+    /** Phases that cannot be entered without evidence on the project. */
+    private static boolean requiresEvidence(ProjectPhase phase) {
+        return phase == ProjectPhase.PROTOTYPE || phase == ProjectPhase.MVP;
+    }
+
+    /**
+     * @throws IllegalArgumentException (→ HTTP 400) when the target phase needs
+     *         evidence and the project has none. The message is user-facing —
+     *         the web client renders it verbatim.
+     */
+    private void requireEvidenceFor(Long projectId, ProjectPhase phase) {
+        if (!requiresEvidence(phase)) {
+            return;
+        }
+        long evidenceCount = attachmentRepo.countByProjectIdAndKind(
+                projectId, AttachmentKind.EVIDENCE);
+        if (evidenceCount == 0) {
+            throw new IllegalArgumentException(
+                    "Evidence is required to move this project to the "
+                            + phase.json() + " stage. Upload a file or add a link first.");
+        }
     }
 
     // ── Internals ───────────────────────────────────────────────────

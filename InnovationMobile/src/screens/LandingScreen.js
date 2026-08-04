@@ -41,7 +41,7 @@ const features = [
 ];
 
 const steps = [
-  { num: '1', title: 'Create Account', desc: 'Sign up as Innovator or Funder' },
+  { num: '1', title: 'Create Account', desc: 'Pick your role from the dropdown — innovator, funder, club member, or club leader' },
   { num: '2', title: 'Build Profile', desc: 'Add your projects or funding needs' },
   { num: '3', title: 'Apply / Post', desc: 'Submit for funding or post opportunities' },
   { num: '4', title: 'Grow Together', desc: 'Track funding and achieve goals' },
@@ -49,8 +49,8 @@ const steps = [
 
 const whyItems = [
   {
-    title: 'One account, three roles.',
-    desc: 'Innovator, Funder, or Club Member switch context in seconds.',
+    title: 'One account, every role.',
+    desc: 'Innovator, Funder, Club Member, or Club Leader — pick yours on the next screen.',
   },
   {
     title: 'Real matching, not magic.',
@@ -140,29 +140,24 @@ export default function LandingScreen({ navigation }) {
                 >
                   <Text style={styles.btnSecondaryText}>Register as Funder</Text>
                 </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.btnSecondary, styles.btnSecondaryClub]}
+                  onPress={() => navigation.navigate('Register', { role: 'club_member' })}
+                >
+                  <Text style={styles.btnSecondaryText}>Join as Club Member</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.btnSecondary, styles.btnSecondaryClub]}
+                  onPress={() => navigation.navigate('Register', { role: 'club_leader' })}
+                >
+                  <Text style={styles.btnSecondaryText}>Register as Club Leader</Text>
+                </TouchableOpacity>
               </View>
 
-              {/* Club Management entry — mirrors web hero-club-entry */}
-              <TouchableOpacity
-                style={styles.heroClubEntry}
-                onPress={() => navigation.navigate('Login')}
-              >
-                <View style={styles.heroClubEntryIcon}>
-                  <Text style={styles.heroClubEntryEmoji}>🎓</Text>
-                </View>
-                <View style={styles.heroClubEntryText}>
-                  <Text style={styles.heroClubEntryTitle}>Club Management</Text>
-                  <Text style={styles.heroClubEntrySub}>
-                    Sign in as a Club Member or Club Leader (Mlezi)
-                  </Text>
-                </View>
-                <Text style={styles.heroClubEntryArrow}>→</Text>
-              </TouchableOpacity>
-
               <Text style={styles.heroNote}>
-                Funders require{' '}
-                <Text style={styles.heroNoteHighlight}>admin approval</Text> before
-                posting funding opportunities
+                One account, every role — pick yours on the next screen.
               </Text>
             </View>
 
@@ -461,10 +456,7 @@ export default function LandingScreen({ navigation }) {
             <View style={styles.footerCol}>
               <Text style={styles.footerColTitle}>Account</Text>
               <TouchableOpacity onPress={() => navigation.navigate('Register')}>
-                <Text style={styles.footerLink}>Innovation Register</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => navigation.navigate('Register')}>
-                <Text style={styles.footerLink}>Club Register</Text>
+                <Text style={styles.footerLink}>Create account</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -630,63 +622,15 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
   },
-  heroClubEntry: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.85)',
-    borderWidth: 1,
-    borderColor: 'rgba(124, 58, 237, 0.25)',
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    borderRadius: 14,
-    width: '100%',
-    marginBottom: 16,
-    shadowColor: '#7c3aed',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.10,
-    shadowRadius: 12,
-    elevation: 2,
-  },
-  heroClubEntryIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    backgroundColor: '#f3e8ff',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  heroClubEntryEmoji: {
-    fontSize: 22,
-  },
-  heroClubEntryText: {
-    flex: 1,
-  },
-  heroClubEntryTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#0f172a',
-  },
-  heroClubEntrySub: {
-    fontSize: 12,
-    color: '#64748b',
-    marginTop: 2,
-  },
-  heroClubEntryArrow: {
-    color: '#7c3aed',
-    fontSize: 16,
-    fontWeight: '700',
-    marginLeft: 8,
+  btnSecondaryClub: {
+    borderColor: 'rgba(124, 58, 237, 0.30)',
+    backgroundColor: 'rgba(124, 58, 237, 0.04)',
   },
   heroNote: {
     fontSize: 12,
     color: colors.textMuted,
     textAlign: 'center',
     marginTop: 4,
-  },
-  heroNoteHighlight: {
-    color: colors.primary,
-    fontWeight: '600',
   },
 
   /* Hero visual showcase */

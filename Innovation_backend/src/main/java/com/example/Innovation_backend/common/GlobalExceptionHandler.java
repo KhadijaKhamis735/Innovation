@@ -13,9 +13,11 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
@@ -108,6 +110,18 @@ public class GlobalExceptionHandler {
             ApplicationService.ApplicationClosedException ex, HttpServletRequest req) {
         ApiError body = ApiError.of(410, "Gone", ex.getMessage(), req.getRequestURI());
         return ResponseEntity.status(HttpStatus.GONE).body(body);
+    }
+
+    /**
+     * Phase 8 — apply payload doesn't match the opportunity's
+     * {@link com.example.Innovation_backend.opportunity.ApplicationFormType}.
+     * 400 Bad Request — the client sent the wrong field set.
+     */
+    @ExceptionHandler(ApplicationService.InvalidApplicationPayloadException.class)
+    public ResponseEntity<ApiError> handleInvalidApplicationPayload(
+            ApplicationService.InvalidApplicationPayloadException ex, HttpServletRequest req) {
+        ApiError body = ApiError.of(400, "Bad Request", ex.getMessage(), req.getRequestURI());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(body);
     }
 
     /**
@@ -245,6 +259,24 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * Phase 3 — query/path-arg enum binding failures (e.g. {@code ?type=foo}
+     * for {@code OpportunityType}) surface via Spring's converter as a
+     * {@link MethodArgumentTypeMismatchException}. Map to a clean 400 with
+     * the converter's message so the mobile filter UI can surface a useful
+     * "unknown type" reason instead of a generic 500.
+     */
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ApiError> handleTypeMismatch(
+            MethodArgumentTypeMismatchException ex, HttpServletRequest req) {
+        Throwable cause = ex.getMostSpecificCause();
+        String message = (cause != null && cause.getMessage() != null)
+                ? cause.getMessage()
+                : "Invalid value for parameter: " + ex.getName();
+        ApiError body = ApiError.of(400, "Bad Request", message, req.getRequestURI());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(body);
+    }
+
+    /**
      * Phase 6B — verification token not recognised, expired, or already used.
      * 400 with a generic message (same anti-enumeration reasoning as
      * {@link #handleInvalidResetToken}).
@@ -254,6 +286,30 @@ public class GlobalExceptionHandler {
             com.example.Innovation_backend.auth.EmailVerificationService.InvalidVerificationTokenException ex,
             HttpServletRequest req) {
         ApiError body = ApiError.of(400, "Bad Request", "Verification token invalid", req.getRequestURI());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(body);
+    }
+
+    /**
+     * Phase 6 — Jackson failed to deserialize the request body. The most
+     * common case from the funder-side stage PATCH is a typo'd stage enum
+     * (e.g. {@code {"stage":"definitely-not-a-stage"}}), which Jackson
+     * surfaces as {@link HttpMessageNotReadableException}. Without this
+     * handler the generic {@link #handleAny} swallows it as a 500 with a
+     * redacted message — useless for the funder trying to figure out why
+     * the modal won't save. Map to a clean 400 echoing the Jackson cause
+     * (truncated to keep payloads tidy).
+     */
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ApiError> handleUnreadable(
+            HttpMessageNotReadableException ex, HttpServletRequest req) {
+        Throwable cause = ex.getMostSpecificCause();
+        String message = (cause != null && cause.getMessage() != null)
+                ? cause.getMessage()
+                : "Malformed request body";
+        // Trim overly long Jackson messages (column positions, full class
+        // names, etc.) so the toast in the mobile modal stays readable.
+        if (message.length() > 240) message = message.substring(0, 237) + "…";
+        ApiError body = ApiError.of(400, "Bad Request", message, req.getRequestURI());
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(body);
     }
 }

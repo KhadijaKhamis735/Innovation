@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -6,114 +6,92 @@ import {
   ScrollView,
   TouchableOpacity,
   SafeAreaView,
-  Alert,
+  RefreshControl,
+  ActivityIndicator,
 } from 'react-native';
 import { colors } from '../styles/colors';
 import Sidebar from '../components/Sidebar';
-import { useApp } from '../context/AppContext';
+import { useFocusEffect } from '@react-navigation/native';
+import { projectsApi } from '../api/projects';
+import {
+  PHASE_ORDER,
+  phaseLabel,
+  phasePalette,
+  approvalPalette,
+} from '../api/phases';
+import { ApiError } from '../api/client';
 
-const phases = [
-  { id: 'idea', label: 'Idea', desc: 'Concept development', color: '#0284c7', bg: '#e0f2fe' },
-  { id: 'proposal', label: 'Proposal', desc: 'Planning & pitching', color: '#d97706', bg: '#fef3c7' },
-  { id: 'prototype', label: 'Prototype', desc: 'Building & testing', color: '#7c3aed', bg: '#f3e8ff' },
-  { id: 'mvp', label: 'MVP', desc: 'Minimum viable product', color: '#16a34a', bg: '#dcfce7' },
-  { id: 'scaling', label: 'Scaling', desc: 'Growth & expansion', color: '#ea580c', bg: '#ffedd5' },
-];
+const PHASE_FILTERS = ['all', ...PHASE_ORDER];
 
-const milestones = {
-  idea: [
-    { id: 'idea-1', label: 'Problem statement', desc: 'Define the problem you\'re solving' },
-    { id: 'idea-2', label: 'Initial concept', desc: 'Describe your core idea' },
-    { id: 'idea-3', label: 'Target audience', desc: 'Identify your target users' },
-  ],
-  proposal: [
-    { id: 'proposal-1', label: 'Business plan', desc: 'Create a detailed business plan' },
-    { id: 'proposal-2', label: 'Budget outline', desc: 'Define your budget and funding needs' },
-    { id: 'proposal-3', label: 'Team composition', desc: 'List your team members and roles' },
-  ],
-  prototype: [
-    { id: 'prototype-1', label: 'Working prototype', desc: 'Build a functional prototype' },
-    { id: 'prototype-2', label: 'Testing results', desc: 'Document testing outcomes' },
-    { id: 'prototype-3', label: 'User feedback', desc: 'Collect feedback from users' },
-  ],
-  mvp: [
-    { id: 'mvp-1', label: 'Core features ready', desc: 'Implement essential features' },
-    { id: 'mvp-2', label: 'Beta testing complete', desc: 'Run beta testing phase' },
-    { id: 'mvp-3', label: 'Market validation', desc: 'Validate market demand' },
-  ],
-  scaling: [
-    { id: 'scaling-1', label: 'Revenue model', desc: 'Define your revenue strategy' },
-    { id: 'scaling-2', label: 'Growth strategy', desc: 'Plan your growth path' },
-    { id: 'scaling-3', label: 'Team expansion', desc: 'Expand your team capacity' },
-  ],
+// Backend ISO timestamp → "Mar 2025" footer label. Returns the raw
+// value on missing/invalid input so the UI never crashes.
+const formatProjectStart = (iso) => {
+  if (!iso) return '—';
+  try {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return iso;
+    return d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+  } catch {
+    return iso;
+  }
 };
 
-const initialProjects = [
-  {
-    id: 1,
-    zsaId: 'ZSA-INV-2025-001',
-    name: 'Smart Water Monitor',
-    category: 'IoT / Environment',
-    phase: 'prototype',
-    date: 'Mar 2025',
-    description: 'IoT-based water quality monitoring system for rural communities.',
-    completedMilestones: ['idea-1', 'idea-2', 'idea-3', 'proposal-1', 'proposal-2', 'proposal-3', 'prototype-1'],
-  },
-  {
-    id: 2,
-    zsaId: 'ZSA-INV-2025-002',
-    name: 'AI Crop Disease Detector',
-    category: 'AgriTech',
-    phase: 'proposal',
-    date: 'Jan 2025',
-    description: 'Machine learning model to detect crop diseases from smartphone photos.',
-    completedMilestones: ['idea-1', 'idea-2', 'idea-3'],
-  },
-  {
-    id: 3,
-    zsaId: 'ZSA-INV-2026-001',
-    name: 'E-Commerce Platform',
-    category: 'FinTech',
-    phase: 'idea',
-    date: 'May 2026',
-    description: 'Peer-to-peer marketplace for local artisans.',
-    completedMilestones: ['idea-1'],
-  },
-];
+const completedMilestoneCount = (project) => {
+  const list = Array.isArray(project?.milestones) ? project.milestones : [];
+  return list.filter((m) => m && m.completed).length;
+};
 
 export default function MyProjectsScreen({ navigation }) {
-  // Read shared projects from AppContext instead of holding local state.
-  // This is what makes the Club → Innovation integration work: a project
-  // created inside the Club flow lands in the same list as the user's
-  // existing innovation projects.
-  const { projects, isClubMember } = useApp();
-  const [selectedPhase, setSelectedPhase] = useState('all');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activeScreen, setActiveScreen] = useState('projects');
+  const [selectedPhase, setSelectedPhase] = useState('all');
 
-  const getPhaseInfo = (phaseId) => phases.find(p => p.id === phaseId);
+  const [projects, setProjects] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState(null);
 
-  const getPhaseProgress = (project, phaseId) => {
-    const phaseMilestones = milestones[phaseId] || [];
-    if (phaseMilestones.length === 0) return 0;
-    const completed = phaseMilestones.filter(m => project.completedMilestones.includes(m.id)).length;
-    return Math.round((completed / phaseMilestones.length) * 100);
-  };
+  // Load / reload the innovator's projects. Called both on mount
+  // (initial load) and via pull-to-refresh. Filters the list to the
+  // INNOVATION surface defensively even though the JWT guarantees
+  // it, so a future mixed-role view doesn't accidentally mix CLUB
+  // rows in here.
+  const load = useCallback(async (mode = 'initial') => {
+    if (mode === 'refresh') setRefreshing(true);
+    if (mode === 'initial') setLoading(true);
+    setError(null);
+    try {
+      const rows = await projectsApi.listMine();
+      const list = Array.isArray(rows) ? rows : [];
+      const innovationOnly = list.filter((p) => p && (p.surface ?? 'innovation') === 'innovation');
+      // Newest first — `updatedAt` descending.
+      innovationOnly.sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
+      setProjects(innovationOnly);
+    } catch (e) {
+      const msg = e instanceof ApiError
+        ? (e.message || 'Could not load your projects.')
+        : (e?.message || 'Could not load your projects.');
+      setError(msg);
+    } finally {
+      if (mode === 'refresh') setRefreshing(false);
+      if (mode === 'initial') setLoading(false);
+    }
+  }, []);
 
-  const getOverallProgress = (project) => {
-    let completed = 0;
-    let total = 0;
-    phases.forEach(phase => {
-      const phaseMilestones = milestones[phase.id] || [];
-      total += phaseMilestones.length;
-      completed += phaseMilestones.filter(m => project.completedMilestones.includes(m.id)).length;
-    });
-    return total > 0 ? Math.round((completed / total) * 100) : 0;
-  };
+  useEffect(() => { load('initial'); }, [load]);
 
-  const filteredProjects = selectedPhase === 'all' 
-    ? projects 
-    : projects.filter(p => p.phase === selectedPhase);
+  // Refetch when the screen regains focus so a project edited via
+  // the detail screen, or approved by an admin in another client,
+  // shows up without a manual reload.
+  useFocusEffect(useCallback(() => { load('refresh'); }, [load]));
+
+  const filtered = useMemo(() => {
+    if (selectedPhase === 'all') return projects;
+    return projects.filter((p) => p.phase === selectedPhase);
+  }, [projects, selectedPhase]);
+
+  const onCreate = () => navigation.navigate('InnovationProjectCreate');
+  const onOpen = (projectId) => navigation.navigate('InnovationProjectDetail', { projectId });
 
   return (
     <SafeAreaView style={styles.container}>
@@ -124,11 +102,10 @@ export default function MyProjectsScreen({ navigation }) {
           onClose={() => setSidebarOpen(false)}
           navigation={navigation}
           userType="innovator"
-          isClubMember={isClubMember}
         />
       )}
 
-      {/* Top bar — replaces gradient header */}
+      {/* Top bar — mirrors web .top-bar */}
       <View style={styles.topBar}>
         <TouchableOpacity
           style={styles.menuBtn}
@@ -141,10 +118,7 @@ export default function MyProjectsScreen({ navigation }) {
           <Text style={styles.pageTitle}>My Projects</Text>
           <Text style={styles.pageSubtitle}>Track your innovation journey through each phase</Text>
         </View>
-        <TouchableOpacity
-          style={styles.createBtn}
-          onPress={() => navigation.navigate('ClubCreateProject')}
-        >
+        <TouchableOpacity style={styles.createBtn} onPress={onCreate} activeOpacity={0.85}>
           <Text style={styles.createBtnText}>+ New</Text>
         </TouchableOpacity>
       </View>
@@ -152,118 +126,132 @@ export default function MyProjectsScreen({ navigation }) {
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={true}
-        scrollEnabled={true}
-        alwaysBounceVertical={true}
-        bounces={true}
+        showsVerticalScrollIndicator
+        scrollEnabled
+        alwaysBounceVertical
+        bounces
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={() => load('refresh')} tintColor={colors.primary} />
+        }
       >
-
-        {/* Phase Filter — wrapping row (no nested ScrollView) */}
+        {/* Phase filter */}
         <View style={styles.filterContainer}>
-          <TouchableOpacity
-            style={[styles.filterChip, selectedPhase === 'all' && styles.filterChipActive]}
-            onPress={() => setSelectedPhase('all')}
-          >
-            <Text style={[styles.filterText, selectedPhase === 'all' && styles.filterTextActive]}>All</Text>
-          </TouchableOpacity>
-          {phases.map(phase => (
-            <TouchableOpacity
-              key={phase.id}
-              style={[styles.filterChip, selectedPhase === phase.id && styles.filterChipActive]}
-              onPress={() => setSelectedPhase(phase.id)}
-            >
-              <Text style={[styles.filterText, selectedPhase === phase.id && styles.filterTextActive]}>{phase.label}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        {/* Projects List */}
-        <View style={styles.projectsContainer}>
-          {filteredProjects.map(project => {
-            const phaseInfo = getPhaseInfo(project.phase);
-            const phaseProgress = getPhaseProgress(project, project.phase);
-            const overallProgress = getOverallProgress(project);
-            
+          {PHASE_FILTERS.map((phaseId) => {
+            const active = selectedPhase === phaseId;
+            const label = phaseId === 'all' ? 'All' : phaseLabel(phaseId);
             return (
               <TouchableOpacity
-                key={project.id}
-                style={styles.projectCard}
-                onPress={() => navigation.navigate('ClubProjectDetail', { projectId: project.id })}
+                key={phaseId}
+                style={[styles.filterChip, active && styles.filterChipActive]}
+                onPress={() => setSelectedPhase(phaseId)}
+                activeOpacity={0.85}
               >
-                <View style={styles.projectHeader}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.projectZsaId}>{project.zsaId}</Text>
-                    <Text style={styles.projectName}>{project.name}</Text>
-                    {project.source === 'club' && (
-                      <View style={styles.clubTag}>
-                        <Text style={styles.clubTagText}>🎓 Club project</Text>
-                      </View>
-                    )}
-                  </View>
-                  <View style={[styles.phaseBadge, { backgroundColor: phaseInfo?.bg }]}>
-                    <Text style={[styles.phaseText, { color: phaseInfo?.color }]}>{phaseInfo?.label}</Text>
-                  </View>
-                </View>
-                
-                <Text style={styles.projectCategory}>{project.category}</Text>
-                <Text style={styles.projectDesc} numberOfLines={2}>{project.description}</Text>
-                
-                {/* Progress Bar */}
-                <View style={styles.progressSection}>
-                  <View style={styles.progressHeader}>
-                    <Text style={styles.progressLabel}>Overall Progress</Text>
-                    <Text style={styles.progressValue}>{overallProgress}%</Text>
-                  </View>
-                  <View style={styles.progressBar}>
-                    <View style={[styles.progressFill, { width: `${overallProgress}%` }]} />
-                  </View>
-                </View>
-
-                {/* Phase Progress */}
-                <View style={styles.phaseProgress}>
-                  <Text style={styles.phaseProgressLabel}>Current Phase Progress</Text>
-                  <View style={styles.phaseProgressBar}>
-                    <View style={[styles.phaseProgressFill, { width: `${phaseProgress}%`, backgroundColor: phaseInfo?.color }]} />
-                  </View>
-                  <Text style={[styles.phaseProgressText, { color: phaseInfo?.color }]}>{phaseProgress}%</Text>
-                </View>
-
-                <View style={styles.projectFooter}>
-                  <Text style={styles.projectDate}>Started: {project.date}</Text>
-                  <TouchableOpacity style={styles.viewButton}>
-                    <Text style={styles.viewButtonText}>View Details →</Text>
-                  </TouchableOpacity>
-                </View>
+                <Text style={[styles.filterText, active && styles.filterTextActive]}>{label}</Text>
               </TouchableOpacity>
             );
           })}
         </View>
 
-        {/* Create New Project Button */}
-        <TouchableOpacity style={styles.createButton} onPress={() => Alert.alert('Create Project', 'Project creation form coming soon!')}>
-          <Text style={styles.createButtonIcon}>➕</Text>
-          <Text style={styles.createButtonText}>Create New Project</Text>
-        </TouchableOpacity>
+        {/* Body — loading / error / empty / list */}
+        {loading ? (
+          <View style={styles.loader}>
+            <ActivityIndicator color={colors.primary} />
+            <Text style={styles.loaderText}>Loading your projects…</Text>
+          </View>
+        ) : error ? (
+          <View style={styles.errorBox}>
+            <Text style={styles.errorTitle}>Couldn’t load your projects</Text>
+            <Text style={styles.errorText}>{error}</Text>
+            <TouchableOpacity style={styles.retryBtn} onPress={() => load('initial')} activeOpacity={0.85}>
+              <Text style={styles.retryBtnText}>Retry</Text>
+            </TouchableOpacity>
+          </View>
+        ) : filtered.length === 0 ? (
+          <View style={styles.emptyBox}>
+            <Text style={styles.emptyTitle}>
+              {projects.length === 0
+                ? 'You haven’t created any projects yet.'
+                : 'No projects in this phase.'}
+            </Text>
+            <Text style={styles.emptyText}>
+              Start by creating a project — add a name, tagline, and an initial milestone.
+            </Text>
+            <TouchableOpacity style={styles.emptyBtn} onPress={onCreate} activeOpacity={0.85}>
+              <Text style={styles.emptyBtnText}>+ Create Your First Project</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <View style={styles.projectsContainer}>
+            {filtered.map((project) => (
+              <ProjectCard
+                key={project.id}
+                project={project}
+                onPress={() => onOpen(project.id)}
+              />
+            ))}
+          </View>
+        )}
+
+        <View style={styles.bottomPad} />
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  scroll: {
-    flex: 1,
-  },
-  scrollContent: {
-    flexGrow: 1,
-    padding: 16,
-    paddingBottom: 40,
-  },
+function ProjectCard({ project, onPress }) {
+  const palette  = phasePalette(project.phase);
+  const approval = approvalPalette(project.approvalStatus || 'pending');
+  const done     = completedMilestoneCount(project);
+  const total    = Array.isArray(project.milestones) ? project.milestones.length : 0;
+  const showZsa  = project.approvalStatus === 'approved' && project.zsaId;
+  const startLabel = formatProjectStart(project.startDate);
 
-  /* Top bar — replaces gradient header */
+  return (
+    <TouchableOpacity style={styles.projectCard} onPress={onPress} activeOpacity={0.85}>
+      <View style={styles.projectHeader}>
+        <View style={{ flex: 1 }}>
+          {showZsa ? (
+            <Text style={styles.projectZsaId}>{project.zsaId}</Text>
+          ) : (
+            <Text style={styles.projectZsaIdPlaceholder}>— pending approval —</Text>
+          )}
+          <Text style={styles.projectName}>{project.name}</Text>
+          {project.category ? <Text style={styles.projectCategory}>{project.category}</Text> : null}
+        </View>
+        <View style={[styles.phaseBadge, { backgroundColor: palette.bg }]}>
+          <Text style={[styles.phaseText, { color: palette.color }]}>{phaseLabel(project.phase)}</Text>
+        </View>
+      </View>
+
+      {project.tagline ? (
+        <Text style={styles.projectDesc} numberOfLines={2}>{project.tagline}</Text>
+      ) : null}
+
+      <View style={styles.metaRow}>
+        <View style={[styles.approvalPill, { backgroundColor: approval.bg }]}>
+          <Text style={[styles.approvalPillText, { color: approval.color }]}>
+            {(project.approvalStatus || 'pending').toUpperCase()}
+          </Text>
+        </View>
+        <Text style={styles.milestoneMeta}>
+          {done}/{total} milestone{total === 1 ? '' : 's'} complete
+        </Text>
+      </View>
+
+      <View style={styles.projectFooter}>
+        <Text style={styles.projectDate}>Started {startLabel}</Text>
+        <Text style={styles.viewButtonText}>View Details →</Text>
+      </View>
+    </TouchableOpacity>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
+  scroll: { flex: 1 },
+  scrollContent: { flexGrow: 1, paddingBottom: 40 },
+
+  /* Top bar — mirrors PostOpportunity / InnovatorDashboard */
   topBar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -275,229 +263,97 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   menuBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.white,
+    width: 40, height: 40, borderRadius: 8,
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderColor: colors.border, backgroundColor: colors.white,
   },
-  menuIcon: {
-    fontSize: 20,
-    color: colors.textSecondary,
-  },
-  topBarCenter: {
-    flex: 1,
-  },
-  pageTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: colors.textPrimary,
-  },
-  pageSubtitle: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    marginTop: 2,
-  },
-  topBarRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
+  menuIcon: { fontSize: 20, color: colors.textSecondary },
+  topBarCenter: { flex: 1 },
+  pageTitle: { fontSize: 17, fontWeight: '700', color: colors.textPrimary },
+  pageSubtitle: { fontSize: 12, color: colors.textSecondary, marginTop: 2 },
   createBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 10,
-    backgroundColor: colors.primary,
-    minHeight: 36,
-    justifyContent: 'center',
+    paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10,
+    backgroundColor: colors.primary, minHeight: 36, justifyContent: 'center',
   },
-  createBtnText: {
-    color: colors.white,
-    fontWeight: '700',
-    fontSize: 13,
-  },
-  clubTag: {
-    alignSelf: 'flex-start',
-    marginTop: 6,
-    backgroundColor: 'rgba(59, 130, 246, 0.12)',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  clubTagText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#1d4ed8',
-  },
+  createBtnText: { color: colors.white, fontWeight: '700', fontSize: 13 },
+
+  /* Phase filter row */
   filterContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    gap: 8,
+    flexDirection: 'row', flexWrap: 'wrap',
+    paddingHorizontal: 20, paddingVertical: 16, gap: 8,
   },
   filterChip: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: colors.white,
-    marginRight: 8,
-    borderWidth: 1,
-    borderColor: colors.border,
+    paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
+    backgroundColor: colors.white, borderWidth: 1, borderColor: colors.border,
   },
-  filterChipActive: {
+  filterChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  filterText: { fontSize: 13, color: colors.textSecondary },
+  filterTextActive: { color: colors.white },
+
+  /* States */
+  loader: { paddingVertical: 32, alignItems: 'center', gap: 8 },
+  loaderText: { fontSize: 12, color: colors.textSecondary },
+  errorBox: {
+    marginHorizontal: 20, padding: 18, borderRadius: 14,
+    backgroundColor: colors.white, borderWidth: 1, borderColor: colors.border,
+    gap: 10,
+  },
+  errorTitle: { fontSize: 14, fontWeight: '700', color: colors.error },
+  errorText: { fontSize: 12, color: colors.textSecondary, lineHeight: 18 },
+  retryBtn: {
+    alignSelf: 'flex-start', paddingHorizontal: 16, paddingVertical: 9,
+    borderRadius: 10, backgroundColor: colors.primary,
+  },
+  retryBtnText: { color: colors.white, fontWeight: '600', fontSize: 13 },
+  emptyBox: {
+    marginHorizontal: 20, padding: 24, borderRadius: 16,
+    backgroundColor: colors.white, borderWidth: 1, borderColor: colors.border,
+    alignItems: 'center', gap: 10,
+  },
+  emptyTitle: { fontSize: 15, fontWeight: '700', color: colors.textPrimary, textAlign: 'center' },
+  emptyText: { fontSize: 13, color: colors.textSecondary, lineHeight: 19, textAlign: 'center' },
+  emptyBtn: {
+    marginTop: 6, paddingHorizontal: 18, paddingVertical: 11, borderRadius: 10,
     backgroundColor: colors.primary,
-    borderColor: colors.primary,
   },
-  filterText: {
-    fontSize: 14,
-    color: colors.textSecondary,
-  },
-  filterTextActive: {
-    color: colors.white,
-  },
-  projectsContainer: {
-    padding: 20,
-    gap: 16,
-  },
+  emptyBtnText: { color: colors.white, fontWeight: '700', fontSize: 14 },
+
+  /* Cards */
+  projectsContainer: { paddingHorizontal: 20, gap: 14 },
   projectCard: {
-    backgroundColor: colors.white,
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: colors.border,
+    backgroundColor: colors.white, borderRadius: 16, padding: 16,
+    borderWidth: 1, borderColor: colors.border,
   },
   projectHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 8,
+    flexDirection: 'row', justifyContent: 'space-between',
+    alignItems: 'flex-start', marginBottom: 10, gap: 12,
   },
-  projectZsaId: {
-    fontSize: 11,
-    color: colors.textMuted,
-    marginBottom: 4,
-  },
-  projectName: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: colors.textPrimary,
-  },
-  phaseBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 20,
-  },
-  phaseText: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  projectCategory: {
-    fontSize: 13,
-    color: colors.textSecondary,
-    marginBottom: 8,
-  },
+  projectZsaId: { fontSize: 11, color: colors.textMuted, marginBottom: 4, fontWeight: '600' },
+  projectZsaIdPlaceholder: { fontSize: 11, color: colors.textMuted, marginBottom: 4, fontStyle: 'italic' },
+  projectName: { fontSize: 18, fontWeight: '600', color: colors.textPrimary },
+  projectCategory: { fontSize: 12, color: colors.textSecondary, marginTop: 4 },
+  phaseBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
+  phaseText: { fontSize: 12, fontWeight: '600' },
+
   projectDesc: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    lineHeight: 20,
-    marginBottom: 12,
+    fontSize: 13, color: colors.textSecondary, lineHeight: 19, marginBottom: 12,
   },
-  progressSection: {
-    marginBottom: 12,
+
+  metaRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12,
   },
-  progressHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 6,
+  approvalPill: {
+    paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6,
   },
-  progressLabel: {
-    fontSize: 12,
-    color: colors.textMuted,
-  },
-  progressValue: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: colors.primary,
-  },
-  progressBar: {
-    height: 6,
-    backgroundColor: colors.border,
-    borderRadius: 3,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    backgroundColor: colors.primary,
-    borderRadius: 3,
-  },
-  phaseProgress: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 12,
-  },
-  phaseProgressLabel: {
-    fontSize: 11,
-    color: colors.textMuted,
-  },
-  phaseProgressBar: {
-    flex: 1,
-    height: 4,
-    backgroundColor: colors.border,
-    borderRadius: 2,
-    overflow: 'hidden',
-  },
-  phaseProgressFill: {
-    height: '100%',
-    borderRadius: 2,
-  },
-  phaseProgressText: {
-    fontSize: 11,
-    fontWeight: '600',
-  },
+  approvalPillText: { fontSize: 10, fontWeight: '700', letterSpacing: 0.5 },
+  milestoneMeta: { fontSize: 12, color: colors.textMuted },
+
   projectFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.border,
   },
-  projectDate: {
-    fontSize: 12,
-    color: colors.textMuted,
-  },
-  viewButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  viewButtonText: {
-    fontSize: 13,
-    color: colors.primary,
-    fontWeight: '500',
-  },
-  createButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    marginHorizontal: 20,
-    marginBottom: 30,
-    paddingVertical: 14,
-    backgroundColor: colors.primary,
-    borderRadius: 12,
-  },
-  createButtonIcon: {
-    fontSize: 18,
-    color: colors.white,
-  },
-  createButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.white,
-  },
+  projectDate: { fontSize: 12, color: colors.textMuted },
+  viewButtonText: { fontSize: 13, color: colors.primary, fontWeight: '600' },
+
+  bottomPad: { height: 24 },
 });

@@ -35,9 +35,17 @@ import static org.mockito.Mockito.when;
 /**
  * Unit tests for {@link PasswordResetService}. Pure Mockito — no Spring, no DB.
  *
- * The two {@code @Value} fields ({@code resetUrlBase},
+ * The {@code @Value} fields ({@code resetUrlWeb}, {@code resetUrlApp},
  * {@code expirationMs}) are wired by Spring at runtime; we inject them with
- * {@link ReflectionTestUtils} so {@code @InjectMocks} can construct the service.
+ * {@link ReflectionTestUtils} so {@code @InjectMocks} can construct the
+ * service. Phase 2 split the single {@code resetUrlBase} into the two
+ * separate fields and threaded a {@link LinkAudience} through
+ * {@code issueForEmail} — these tests assert both links appear in the body
+ * and that the audience controls their ordering.
+ *
+ * The existing {@code consume_revokesAllRefreshTokens_forPrincipal_beforeMarkingConsumed}
+ * test covers the call-site; the family-spanning behaviour is asserted in
+ * {@code RefreshTokenRepositoryTest}.
  */
 @ExtendWith(MockitoExtension.class)
 class PasswordResetServiceTest {
@@ -52,7 +60,8 @@ class PasswordResetServiceTest {
 
     private PasswordResetService service;
 
-    private static final String RESET_URL = "http://localhost:5173/reset-password?token=";
+    private static final String RESET_URL_WEB = "http://localhost:5173/reset-password?token=";
+    private static final String RESET_URL_APP = "innovationmobile://reset-password?token=";
     private static final long ONE_HOUR_MS = 60L * 60 * 1000;
 
     @BeforeEach
@@ -60,8 +69,86 @@ class PasswordResetServiceTest {
         service = new PasswordResetService(
                 repo, userRepository, clubMemberRepository, clubLeaderRepository,
                 refreshTokenRepository, emailService, passwordEncoder);
-        ReflectionTestUtils.setField(service, "resetUrlBase", RESET_URL);
+        ReflectionTestUtils.setField(service, "resetUrlWeb", RESET_URL_WEB);
+        ReflectionTestUtils.setField(service, "resetUrlApp", RESET_URL_APP);
         ReflectionTestUtils.setField(service, "expirationMs", ONE_HOUR_MS);
+    }
+
+    // ── issueForEmail() — Phase 2: both links in the body, audience-aware order
+
+    @Test
+    void issueForEmail_webAudience_bodyContainsBothLinks_webFirst() {
+        User u = User.builder().id(1L).email("u@example.com").password("old").build();
+        when(userRepository.findByEmail("u@example.com")).thenReturn(Optional.of(u));
+        when(repo.findAllBySurfaceAndUserId(PasswordResetToken.Surface.INNOVATION, 1L))
+                .thenReturn(List.of());
+        when(repo.save(any(PasswordResetToken.class))).thenAnswer(inv -> {
+            PasswordResetToken t = inv.getArgument(0);
+            if (t.getId() == null) t.setId(10L);
+            return t;
+        });
+
+        Optional<PasswordResetService.Issued> result = service.issueForEmail(
+                "u@example.com", LinkAudience.WEB);
+
+        assertThat(result).isPresent();
+        assertThat(result.get().row().getSurface()).isEqualTo(PasswordResetToken.Surface.INNOVATION);
+        assertThat(result.get().row().getUserId()).isEqualTo(1L);
+
+        ArgumentCaptor<String> body = ArgumentCaptor.forClass(String.class);
+        verify(emailService).send(anyString(), anyString(), body.capture());
+        assertThat(body.getValue()).contains(RESET_URL_WEB + result.get().rawToken());
+        assertThat(body.getValue()).contains(RESET_URL_APP + result.get().rawToken());
+        int webIdx = body.getValue().indexOf(RESET_URL_WEB + result.get().rawToken());
+        int appIdx = body.getValue().indexOf(RESET_URL_APP + result.get().rawToken());
+        assertThat(webIdx).isPositive();
+        assertThat(appIdx).isPositive();
+        assertThat(webIdx).isLessThan(appIdx);
+    }
+
+    @Test
+    void issueForEmail_mobileAudience_bodyContainsBothLinks_appFirst() {
+        User u = User.builder().id(1L).email("u@example.com").password("old").build();
+        when(userRepository.findByEmail("u@example.com")).thenReturn(Optional.of(u));
+        when(repo.findAllBySurfaceAndUserId(PasswordResetToken.Surface.INNOVATION, 1L))
+                .thenReturn(List.of());
+        when(repo.save(any(PasswordResetToken.class))).thenAnswer(inv -> {
+            PasswordResetToken t = inv.getArgument(0);
+            if (t.getId() == null) t.setId(10L);
+            return t;
+        });
+
+        Optional<PasswordResetService.Issued> result = service.issueForEmail(
+                "u@example.com", LinkAudience.MOBILE);
+
+        ArgumentCaptor<String> body = ArgumentCaptor.forClass(String.class);
+        verify(emailService).send(anyString(), anyString(), body.capture());
+        assertThat(body.getValue()).contains(RESET_URL_WEB + result.get().rawToken());
+        assertThat(body.getValue()).contains(RESET_URL_APP + result.get().rawToken());
+        int webIdx = body.getValue().indexOf(RESET_URL_WEB + result.get().rawToken());
+        int appIdx = body.getValue().indexOf(RESET_URL_APP + result.get().rawToken());
+        assertThat(webIdx).isPositive();
+        assertThat(appIdx).isPositive();
+        assertThat(appIdx).isLessThan(webIdx);
+    }
+
+    @Test
+    void issueForEmail_noAudience_defaultsToWeb() {
+        // The 1-arg overload still exists and must thread LinkAudience.WEB
+        // through so existing web callers keep behaving identically.
+        User u = User.builder().id(1L).email("u@example.com").password("old").build();
+        when(userRepository.findByEmail("u@example.com")).thenReturn(Optional.of(u));
+        when(repo.findAllBySurfaceAndUserId(PasswordResetToken.Surface.INNOVATION, 1L))
+                .thenReturn(List.of());
+        when(repo.save(any(PasswordResetToken.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        Optional<PasswordResetService.Issued> result = service.issueForEmail("u@example.com");
+
+        ArgumentCaptor<String> body = ArgumentCaptor.forClass(String.class);
+        verify(emailService).send(anyString(), anyString(), body.capture());
+        int webIdx = body.getValue().indexOf(RESET_URL_WEB + result.get().rawToken());
+        int appIdx = body.getValue().indexOf(RESET_URL_APP + result.get().rawToken());
+        assertThat(webIdx).isLessThan(appIdx);
     }
 
     // ── issueForEmail() — cross-table lookup ────────────────────────
@@ -88,7 +175,10 @@ class PasswordResetServiceTest {
         ArgumentCaptor<String> body = ArgumentCaptor.forClass(String.class);
         verify(emailService).send(to.capture(), anyString(), body.capture());
         assertThat(to.getValue()).isEqualTo("u@example.com");
-        assertThat(body.getValue()).contains(RESET_URL + result.get().rawToken());
+        // Both links must be present in the body — the primary is whichever
+        // the audience chose (WEB here by default), the other is the fallback.
+        assertThat(body.getValue()).contains(RESET_URL_WEB + result.get().rawToken());
+        assertThat(body.getValue()).contains(RESET_URL_APP + result.get().rawToken());
     }
 
     @Test

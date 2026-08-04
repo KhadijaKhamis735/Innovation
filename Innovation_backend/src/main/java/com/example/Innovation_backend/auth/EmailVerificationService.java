@@ -35,8 +35,11 @@ public class EmailVerificationService {
     private final EmailVerificationTokenRepository repo;
     private final EmailService emailService;
 
-    @Value("${app.email.verification-url}")
-    private String verificationUrlBase;
+    @Value("${app.email.verification-url-web}")
+    private String verificationUrlWeb;
+
+    @Value("${app.email.verification-url-app}")
+    private String verificationUrlApp;
 
     @Value("${app.email.verification-expiration-ms:86400000}")
     private long expirationMs;
@@ -46,6 +49,14 @@ public class EmailVerificationService {
 
     @Transactional
     public Issued issue(EmailVerificationToken.Surface surface, Long userId, String toEmail) {
+        return issue(surface, userId, toEmail, LinkAudience.WEB);
+    }
+
+    @Transactional
+    public Issued issue(EmailVerificationToken.Surface surface,
+                        Long userId,
+                        String toEmail,
+                        LinkAudience audience) {
         // Invalidate any earlier tokens for this principal.
         for (EmailVerificationToken old : repo.findAllBySurfaceAndUserId(surface, userId)) {
             if (old.getConsumedAt() == null) {
@@ -67,26 +78,37 @@ public class EmailVerificationService {
                 .build();
         row = repo.save(row);
 
-        String link = verificationUrlBase + raw;
+        String appLink = verificationUrlApp + raw;
+        String webLink = verificationUrlWeb + raw;
+        String primary = audience == LinkAudience.MOBILE ? appLink : webLink;
+        String fallback = audience == LinkAudience.MOBILE ? webLink : appLink;
+
         String subject = "Verify your Innovation account";
-        String body = """
+        String body = body(audience, primary, fallback);
+
+        emailService.send(toEmail, subject, body);
+        log.info("Issued email verification token id={} surface={} userId={} audience={}",
+                row.getId(), surface, userId, audience);
+        return new Issued(row, raw);
+    }
+
+    private String body(LinkAudience audience, String primary, String fallback) {
+        String primaryLabel = audience == LinkAudience.MOBILE ? "Open in app" : "Verify in browser";
+        String fallbackLabel = audience == LinkAudience.MOBILE ? "Verify in browser" : "Open in app";
+        return """
                 Hello,
 
                 Thanks for registering with the Innovation platform.
-                Please verify your email by clicking the link below:
+                Please verify your email by tapping one of the links below:
 
-                %s
+                %s: %s
+                %s: %s
 
                 This link expires in 24 hours. If you didn't create this account,
                 you can safely ignore this email.
 
                 — Innovation Team
-                """.formatted(link);
-
-        emailService.send(toEmail, subject, body);
-        log.info("Issued email verification token id={} surface={} userId={}",
-                row.getId(), surface, userId);
-        return new Issued(row, raw);
+                """.formatted(primaryLabel, primary, fallbackLabel, fallback);
     }
 
     /**

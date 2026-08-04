@@ -25,6 +25,7 @@ import java.time.temporal.ChronoUnit;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -74,7 +75,8 @@ class MobileAuthControllerWebMvcTest {
 
     private static final UserResponse SAMPLE_USER = new UserResponse(
             1L, "u@example.com", "Khadija", "Khamis", "Khadija Khamis",
-            Role.INNOVATOR, null, "active", null, null, null, null, false
+            Role.INNOVATOR, null, "active", null, null, null, null, false,
+            true, true, true, false, false, false
     );
 
     private static final MobileAuthResponse SAMPLE_RESPONSE = new MobileAuthResponse(
@@ -281,17 +283,53 @@ class MobileAuthControllerWebMvcTest {
     void resendVerification_returns202() throws Exception {
         mvc.perform(post("/api/mobile/auth/resend-verification"))
                 .andExpect(status().isAccepted());
-        verify(authService, times(1)).resendVerification();
+        verify(authService, times(1)).resendVerification(LinkAudience.MOBILE);
+    }
+
+    // ── POST /api/mobile/auth/resend-verification-by-email ────────────
+    // New for Phase 2 — a session-less user (e.g. just-registered, app
+    // already closed) can resend by email. Anti-enumeration contract:
+    // identical 202 responses for known and unknown emails; a swallowed
+    // "already verified" path still returns 202, never 403/500.
+
+    @Test
+    void resendByEmail_knownEmail_returns202() throws Exception {
+        mvc.perform(post("/api/mobile/auth/resend-verification-by-email")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"u@example.com\"}"))
+                .andExpect(status().isAccepted());
+        verify(authService, times(1))
+                .resendVerificationForEmail(eq("u@example.com"), eq(LinkAudience.MOBILE));
+    }
+
+    @Test
+    void resendByEmail_unknownEmail_returns202_antiEnumeration() throws Exception {
+        mvc.perform(post("/api/mobile/auth/resend-verification-by-email")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"nobody@example.com\"}"))
+                .andExpect(status().isAccepted());
+        verify(authService, times(1))
+                .resendVerificationForEmail(eq("nobody@example.com"), eq(LinkAudience.MOBILE));
+    }
+
+    @Test
+    void resendByEmail_malformedEmail_returns400() throws Exception {
+        mvc.perform(post("/api/mobile/auth/resend-verification-by-email")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"not-an-email\"}"))
+                .andExpect(status().isBadRequest());
+        verify(authService, never()).resendVerificationForEmail(anyString(), any());
     }
 
     // ── POST /api/mobile/auth/forgot-password ─────────────────────────
 
     @Test
     void forgotPassword_knownEmail_returns202() throws Exception {
-        when(passwordReset.issueForEmail("u@example.com")).thenReturn(java.util.Optional.of(
-                new PasswordResetService.Issued(
-                        PasswordResetToken.builder().id(1L).build(),
-                        "raw-token")));
+        when(passwordReset.issueForEmail(eq("u@example.com"), eq(LinkAudience.MOBILE)))
+                .thenReturn(java.util.Optional.of(
+                        new PasswordResetService.Issued(
+                                PasswordResetToken.builder().id(1L).build(),
+                                "raw-token")));
 
         mvc.perform(post("/api/mobile/auth/forgot-password")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -301,7 +339,7 @@ class MobileAuthControllerWebMvcTest {
 
     @Test
     void forgotPassword_unknownEmail_returns202_antiEnumeration() throws Exception {
-        when(passwordReset.issueForEmail("nobody@example.com"))
+        when(passwordReset.issueForEmail(eq("nobody@example.com"), eq(LinkAudience.MOBILE)))
                 .thenReturn(java.util.Optional.empty());
 
         mvc.perform(post("/api/mobile/auth/forgot-password")
@@ -316,7 +354,7 @@ class MobileAuthControllerWebMvcTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"email\":\"not-an-email\"}"))
                 .andExpect(status().isBadRequest());
-        verify(passwordReset, never()).issueForEmail(anyString());
+        verify(passwordReset, never()).issueForEmail(anyString(), any());
     }
 
     // ── POST /api/mobile/auth/reset-password ──────────────────────────

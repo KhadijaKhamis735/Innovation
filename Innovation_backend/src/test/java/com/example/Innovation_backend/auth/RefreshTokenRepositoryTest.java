@@ -128,6 +128,38 @@ class RefreshTokenRepositoryTest {
         assertThat(repo.findByTokenHash("U2I1").orElseThrow().getRevokedAt()).isNull();
     }
 
+    /**
+     * Phase 2 mobile — multi-device password reset must revoke every
+     * refresh-token family for the principal, not just the one that
+     * happened to be presented. Each login (or sign-in on a new device)
+     * opens a fresh family, so {@code revokeAllForPrincipal} has to
+     * ignore {@code familyId} entirely when the (surface, userId) pair
+     * matches.
+     */
+    @Test
+    void revokeAllForPrincipal_spansEveryFamily_forSamePrincipal() {
+        UUID familyA = UUID.randomUUID();
+        UUID familyB = UUID.randomUUID();
+        // Two distinct families for user 1, both on INNOVATION.
+        em.persistAndFlush(rowFor(RefreshToken.Surface.INNOVATION, 1L, familyA, "spanA1"));
+        em.persistAndFlush(rowFor(RefreshToken.Surface.INNOVATION, 1L, familyA, "spanA2"));
+        em.persistAndFlush(rowFor(RefreshToken.Surface.INNOVATION, 1L, familyB, "spanB1"));
+        em.persistAndFlush(rowFor(RefreshToken.Surface.INNOVATION, 1L, familyB, "spanB2"));
+
+        int updated = repo.revokeAllForPrincipal(
+                RefreshToken.Surface.INNOVATION, 1L, Instant.now());
+        em.flush();
+        em.clear();
+
+        assertThat(updated).isEqualTo(4);
+
+        // Every row across both families is revoked.
+        assertThat(repo.findByTokenHash("spanA1").orElseThrow().getRevokedAt()).isNotNull();
+        assertThat(repo.findByTokenHash("spanA2").orElseThrow().getRevokedAt()).isNotNull();
+        assertThat(repo.findByTokenHash("spanB1").orElseThrow().getRevokedAt()).isNotNull();
+        assertThat(repo.findByTokenHash("spanB2").orElseThrow().getRevokedAt()).isNotNull();
+    }
+
     @Test
     void surfaceEnum_persistsAndReloadsAsString() {
         UUID family = UUID.randomUUID();

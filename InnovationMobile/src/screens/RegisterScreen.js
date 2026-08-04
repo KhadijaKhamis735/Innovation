@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -14,20 +14,87 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { colors } from '../styles/colors';
 import { useAuth } from '../context/AuthContext';
+import { clubAuthApi } from '../api/clubAuth';
+import RoleDropdown from '../components/RoleDropdown';
+import UniversityPicker from '../components/UniversityPicker';
+import CategoryPicker from '../components/CategoryPicker';
 
-export default function RegisterScreen({ navigation }) {
+// RegisterScreen
+// --------------
+// One unified registration surface for all four roles:
+//
+//   innovator / funder → POST /api/mobile/auth/register
+//   club_member / club_leader → POST /api/mobile/club/auth/register
+//
+// The role picker at the top drives which fields appear below and
+// which endpoint gets called on submit. The user never sees the
+// branch — same form, same screen, same UX.
+//
+// Innovation/funder share the existing `signUp()` helper from
+// AuthContext (which discards tokens — we deliberately do not
+// auto-login after register). Club uses a sibling helper that hits
+// the /api/mobile/club/auth/register endpoint and likewise discards
+// the response tokens; the user lands on CheckEmail with
+// purpose='verify-club' so the resend button hits the right URL.
+//
+// First/Last name fields stay unified across roles (matches the web
+// AuthPage register tab). For club roles we combine them into a
+// single `fullName` on the wire, since ClubRegisterRequest requires
+// that field.
+
+const ROLE_OPTIONS = ['innovator', 'funder', 'club_member', 'club_leader'];
+
+export default function RegisterScreen({ navigation, route }) {
   const { signUp } = useAuth();
+
+  const [role, setRole] = useState(initialRole(route?.params?.role));
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
-  const [sector, setSector] = useState('');
+  const [organization, setOrganization] = useState('');
+
+  // Club-only state
+  const [universities, setUniversities] = useState([]);
+  const [universityId, setUniversityId] = useState(null);
+  const [category, setCategory] = useState(null);
+  const [regNumber, setRegNumber] = useState('');
+  const [staffId, setStaffId] = useState('');
+  const [graduationYear, setGraduationYear] = useState('');
+  const [organizationName, setOrganizationName] = useState('');
+  const [organizationRole, setOrganizationRole] = useState('');
+  const [bio, setBio] = useState('');
+
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [role, setRole] = useState('innovator');
+  const [universitiesError, setUniversitiesError] = useState('');
+
+  const isClubRole = role === 'club_member' || role === 'club_leader';
+
+  // Load universities once when the screen mounts; we only need them
+  // when a club role is picked but it's cheap to fetch up front.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const list = await clubAuthApi.listUniversities();
+        if (!cancelled) {
+          setUniversities(list || []);
+          setUniversitiesError('');
+        }
+      } catch (e) {
+        if (!cancelled) {
+          setUniversitiesError(
+            e?.message || 'Could not load universities. Please retry.',
+          );
+        }
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   const requirements = [
     { text: 'At least 6 characters', met: password.length >= 6 },
@@ -39,6 +106,10 @@ export default function RegisterScreen({ navigation }) {
       setError('Please fill all required fields.');
       return;
     }
+    if (role === 'funder' && !organization.trim()) {
+      setError('Please enter your organization name.');
+      return;
+    }
     if (password !== confirm) {
       setError('Passwords do not match.');
       return;
@@ -47,9 +118,71 @@ export default function RegisterScreen({ navigation }) {
       setError('Password must be at least 6 characters.');
       return;
     }
+    if (isClubRole) {
+      if (!universityId) {
+        setError('Please select your university.');
+        return;
+      }
+      if (!category) {
+        setError('Please pick a member category.');
+        return;
+      }
+      if (category === 'student' && !regNumber.trim()) {
+        setError('Student registration number is required.');
+        return;
+      }
+      if (category === 'staff' && !staffId.trim()) {
+        setError('Staff ID is required.');
+        return;
+      }
+      if (category === 'alumni' && !graduationYear.trim()) {
+        setError('Graduation year is required.');
+        return;
+      }
+      if (category === 'corporate') {
+        if (!organizationName.trim() || !organizationRole.trim()) {
+          setError('Organization name and role are required.');
+          return;
+        }
+      }
+    }
+
     setError('');
     setLoading(true);
     try {
+      if (isClubRole) {
+        // Club — POST /api/mobile/club/auth/register. Tokens from the
+        // response are discarded deliberately (signUp discards them);
+        // user lands on CheckEmail with purpose='verify-club'.
+        const fullName = `${firstName.trim()} ${lastName.trim()}`.trim();
+        const payload = {
+          email: email.trim(),
+          password,
+          fullName,
+          universityId,
+          category,
+        };
+        if (regNumber.trim()) payload.regNumber = regNumber.trim().toUpperCase();
+        if (staffId.trim()) payload.staffId = staffId.trim();
+        if (graduationYear.trim()) {
+          const n = parseInt(graduationYear, 10);
+          if (Number.isFinite(n)) payload.graduationYear = n;
+        }
+        if (organizationName.trim()) payload.organizationName = organizationName.trim();
+        if (organizationRole.trim()) payload.organizationRole = organizationRole.trim();
+        if (bio.trim()) payload.bio = bio.trim();
+
+        await clubAuthApi.register(payload);
+        navigation.replace('CheckEmail', {
+          email: email.trim(),
+          purpose: 'verify-club',
+        });
+        return;
+      }
+
+      // Innovator / funder — POST /api/mobile/auth/register via the
+      // existing signUp() helper. The funder's organization lives on
+      // the `sector` column server-side (deferred rename).
       const payload = {
         email: email.trim(),
         password,
@@ -57,15 +190,13 @@ export default function RegisterScreen({ navigation }) {
         firstName: firstName.trim(),
         lastName: lastName.trim(),
       };
-      if (role === 'funder' && sector.trim()) {
-        payload.sector = sector.trim();
-      }
-      const created = await signUp(payload);
-      if (created?.role === 'funder') {
-        navigation.replace('FunderDashboard');
-      } else {
-        navigation.replace('Dashboard');
-      }
+      if (role === 'funder') payload.sector = organization.trim();
+
+      await signUp(payload);
+      navigation.replace('CheckEmail', {
+        email: email.trim(),
+        purpose: 'verify',
+      });
     } catch (e) {
       setError(e?.message || 'Could not create your account. Please try again.');
     } finally {
@@ -74,268 +205,391 @@ export default function RegisterScreen({ navigation }) {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.keyboardView}
-      >
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.scrollContent}
-          keyboardShouldPersistTaps="handled"
+    <LinearGradient
+      colors={['#ff8a3d', '#f97316', '#7c3aed', '#1e1b4b']}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={styles.gradient}
+    >
+      <SafeAreaView style={styles.safe}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.keyboardView}
         >
-          {/* Brand header — compact, single line */}
-          <LinearGradient
-            colors={['#1a1a2e', '#2d1f0f', '#1a1a2e']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.brandHeader}
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.scrollContent}
+            keyboardShouldPersistTaps="handled"
           >
-            <TouchableOpacity
-              onPress={() => navigation.navigate('Landing')}
-              style={styles.brand}
-            >
-              <LinearGradient
-                colors={[colors.primary, colors.primaryDark]}
-                style={styles.brandLogo}
-              >
-                <Text style={styles.brandLogoIcon}>⚡</Text>
-              </LinearGradient>
-              <View>
-                <Text style={styles.brandName}>Innovation Management</Text>
-                <Text style={styles.brandTagline}>Join the innovation ecosystem today</Text>
-              </View>
-            </TouchableOpacity>
-          </LinearGradient>
-
-          {/* Form section */}
-          <View style={styles.formSection}>
-            <Text style={styles.formHeading}>Create account</Text>
-            <Text style={styles.formSubheading}>
-              Get started — it's completely free.
-            </Text>
-
-            {/* Role toggle */}
-            <View style={styles.roleToggle}>
-              {[
-                { key: 'innovator', label: 'Innovator' },
-                { key: 'funder', label: 'Funder' },
-              ].map((r) => (
-                <TouchableOpacity
-                  key={r.key}
-                  style={[styles.roleBtn, role === r.key && styles.roleBtnActive]}
-                  onPress={() => setRole(r.key)}
+            <View style={styles.card}>
+              {/* Brand row */}
+              <View style={styles.brandRow}>
+                <LinearGradient
+                  colors={[colors.primary, colors.primaryDark]}
+                  style={styles.brandLogo}
                 >
-                  <Text style={[styles.roleBtnText, role === r.key && styles.roleBtnTextActive]}>
-                    {r.label}
+                  <Text style={styles.brandLogoIcon}>⚡</Text>
+                </LinearGradient>
+                <View style={styles.brandText}>
+                  <Text style={styles.brandName}>Innovation Management</Text>
+                  <Text style={styles.brandTagline}>
+                    Join the innovation ecosystem today
                   </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            {/* Funder notice */}
-            {role === 'funder' && (
-              <View style={styles.notice}>
-                <Text style={styles.noticeText}>
-                  <Text style={styles.noticeStrong}>Note: </Text>
-                  Funder accounts require admin approval before you can post funding opportunities.
-                </Text>
-              </View>
-            )}
-
-            {error ? (
-              <View style={styles.errorBox}>
-                <Text style={styles.errorText}>{error}</Text>
-              </View>
-            ) : null}
-
-            {/* First / Last name */}
-            <View style={styles.formRow2}>
-              <View style={[styles.formGroup, styles.formGroupHalf]}>
-                <Text style={styles.formLabel}>First Name *</Text>
-                <TextInput
-                  style={styles.formInput}
-                  placeholder="First Name"
-                  placeholderTextColor={colors.textMuted}
-                  value={firstName}
-                  onChangeText={setFirstName}
-                  autoComplete="given-name"
-                />
-              </View>
-              <View style={[styles.formGroup, styles.formGroupHalf]}>
-                <Text style={styles.formLabel}>Last Name *</Text>
-                <TextInput
-                  style={styles.formInput}
-                  placeholder="Last Name"
-                  placeholderTextColor={colors.textMuted}
-                  value={lastName}
-                  onChangeText={setLastName}
-                  autoComplete="family-name"
-                />
-              </View>
-            </View>
-
-            {/* Industry / sector (funder only) */}
-            {role === 'funder' && (
-              <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>Industry / Sector</Text>
-                <TextInput
-                  style={styles.formInput}
-                  placeholder="e.g. Technology, Healthcare"
-                  placeholderTextColor={colors.textMuted}
-                  value={sector}
-                  onChangeText={setSector}
-                />
-              </View>
-            )}
-
-            {/* Email */}
-            <View style={styles.formGroup}>
-              <Text style={styles.formLabel}>Email address *</Text>
-              <TextInput
-                style={styles.formInput}
-                placeholder="you@example.com"
-                placeholderTextColor={colors.textMuted}
-                value={email}
-                onChangeText={setEmail}
-                autoCapitalize="none"
-                keyboardType="email-address"
-                autoComplete="email"
-              />
-            </View>
-
-            {/* Password / Confirm */}
-            <View style={styles.formRow2}>
-              <View style={[styles.formGroup, styles.formGroupHalf]}>
-                <Text style={styles.formLabel}>Password *</Text>
-                <View style={styles.passwordWrapper}>
-                  <TextInput
-                    style={[styles.formInput, styles.passwordInput]}
-                    placeholder="Create password"
-                    placeholderTextColor={colors.textMuted}
-                    value={password}
-                    onChangeText={setPassword}
-                    secureTextEntry={!showPassword}
-                    autoComplete="new-password"
-                  />
-                  <TouchableOpacity
-                    style={styles.eyeBtn}
-                    onPress={() => setShowPassword(!showPassword)}
-                  >
-                    <Text style={styles.eyeIcon}>{showPassword ? '🙈' : '👁️'}</Text>
-                  </TouchableOpacity>
                 </View>
-                {password.length > 0 && (
-                  <View style={styles.requirements}>
-                    {requirements.map((req, i) => (
-                      <View key={i} style={styles.requirementRow}>
-                        <View
-                          style={[
-                            styles.requirementIcon,
-                            req.met && styles.requirementIconMet,
-                          ]}
-                        >
-                          <Text
+              </View>
+
+              <Text style={styles.formHeading}>Create account</Text>
+              <Text style={styles.formSubheading}>
+                {isClubRole
+                  ? "Pick your role and add your university details — we'll get you in."
+                  : "Get started — it's completely free."}
+              </Text>
+
+              {isClubRole ? (
+                <View style={styles.notice}>
+                  <Text style={styles.noticeText}>
+                    <Text style={styles.noticeStrong}>Heads up: </Text>
+                    {role === 'club_leader'
+                      ? 'Club leader accounts are normally created by an administrator. Selecting this option creates a member account that can later be promoted.'
+                      : 'Your membership enters "pending" until a club leader verifies your registration.'}
+                  </Text>
+                </View>
+              ) : null}
+
+              {error ? (
+                <View style={styles.errorBox}>
+                  <Text style={styles.errorText}>{error}</Text>
+                </View>
+              ) : null}
+
+              {/* First / Last name */}
+              <View style={styles.formRow2}>
+                <View style={[styles.formGroup, styles.formGroupHalf]}>
+                  <Text style={styles.formLabel}>First Name *</Text>
+                  <TextInput
+                    style={styles.formInput}
+                    placeholder="First Name"
+                    placeholderTextColor={colors.textMuted}
+                    value={firstName}
+                    onChangeText={setFirstName}
+                    autoComplete="given-name"
+                  />
+                </View>
+                <View style={[styles.formGroup, styles.formGroupHalf]}>
+                  <Text style={styles.formLabel}>Last Name *</Text>
+                  <TextInput
+                    style={styles.formInput}
+                    placeholder="Last Name"
+                    placeholderTextColor={colors.textMuted}
+                    value={lastName}
+                    onChangeText={setLastName}
+                    autoComplete="family-name"
+                  />
+                </View>
+              </View>
+
+              {/* Email */}
+              <View style={styles.formGroup}>
+                <Text style={styles.formLabel}>Email address *</Text>
+                <TextInput
+                  style={styles.formInput}
+                  placeholder="you@example.com"
+                  placeholderTextColor={colors.textMuted}
+                  value={email}
+                  onChangeText={setEmail}
+                  autoCapitalize="none"
+                  keyboardType="email-address"
+                  autoComplete="email"
+                />
+              </View>
+
+              {/* Role dropdown — the heart of the unified form */}
+              <RoleDropdown value={role} onChange={setRole} />
+
+              {/* Funder-only: organization name */}
+              {role === 'funder' && (
+                <View style={styles.formGroup}>
+                  <Text style={styles.formLabel}>Organization name *</Text>
+                  <TextInput
+                    style={styles.formInput}
+                    placeholder="e.g. Acme Foundation"
+                    placeholderTextColor={colors.textMuted}
+                    value={organization}
+                    onChangeText={setOrganization}
+                    autoComplete="organization"
+                  />
+                </View>
+              )}
+
+              {/* Club-only: university + category + category-conditional fields */}
+              {isClubRole && (
+                <>
+                  <View style={styles.formGroup}>
+                    <Text style={styles.formLabel}>University *</Text>
+                    {universitiesError ? (
+                      <View style={styles.errorBox}>
+                        <Text style={styles.errorText}>{universitiesError}</Text>
+                      </View>
+                    ) : (
+                      <UniversityPicker
+                        universities={universities}
+                        value={universityId}
+                        onChange={setUniversityId}
+                      />
+                    )}
+                  </View>
+
+                  <View style={styles.formGroup}>
+                    <Text style={styles.formLabel}>Member category *</Text>
+                    <CategoryPicker value={category} onChange={setCategory} />
+                  </View>
+
+                  {category === 'student' && (
+                    <View style={styles.formGroup}>
+                      <Text style={styles.formLabel}>Student registration number *</Text>
+                      <TextInput
+                        style={styles.formInput}
+                        placeholder="e.g. SUZA/2024/001"
+                        placeholderTextColor={colors.textMuted}
+                        value={regNumber}
+                        onChangeText={(t) => setRegNumber(t.toUpperCase())}
+                        autoCapitalize="characters"
+                        autoCorrect={false}
+                      />
+                      <Text style={styles.helperText}>
+                        Appears on your student ID and is checked against the university registry.
+                      </Text>
+                    </View>
+                  )}
+
+                  {category === 'staff' && (
+                    <View style={styles.formGroup}>
+                      <Text style={styles.formLabel}>Staff ID *</Text>
+                      <TextInput
+                        style={styles.formInput}
+                        placeholder="e.g. SUZA-STF-2034"
+                        placeholderTextColor={colors.textMuted}
+                        value={staffId}
+                        onChangeText={setStaffId}
+                        autoCapitalize="characters"
+                        autoCorrect={false}
+                      />
+                    </View>
+                  )}
+
+                  {category === 'alumni' && (
+                    <View style={styles.formGroup}>
+                      <Text style={styles.formLabel}>Graduation year *</Text>
+                      <TextInput
+                        style={styles.formInput}
+                        placeholder="e.g. 2022"
+                        placeholderTextColor={colors.textMuted}
+                        value={graduationYear}
+                        onChangeText={setGraduationYear}
+                        keyboardType="number-pad"
+                        maxLength={4}
+                      />
+                    </View>
+                  )}
+
+                  {category === 'corporate' && (
+                    <>
+                      <View style={styles.formGroup}>
+                        <Text style={styles.formLabel}>Organization name *</Text>
+                        <TextInput
+                          style={styles.formInput}
+                          placeholder="e.g. BlueWave Tech"
+                          placeholderTextColor={colors.textMuted}
+                          value={organizationName}
+                          onChangeText={setOrganizationName}
+                          autoComplete="organization"
+                        />
+                      </View>
+                      <View style={styles.formGroup}>
+                        <Text style={styles.formLabel}>Your role *</Text>
+                        <TextInput
+                          style={styles.formInput}
+                          placeholder="e.g. Head of Innovation"
+                          placeholderTextColor={colors.textMuted}
+                          value={organizationRole}
+                          onChangeText={setOrganizationRole}
+                        />
+                      </View>
+                    </>
+                  )}
+
+                  {/* Bio — optional, all categories */}
+                  <View style={styles.formGroup}>
+                    <Text style={styles.formLabel}>Short bio (optional)</Text>
+                    <TextInput
+                      style={[styles.formInput, styles.textarea]}
+                      placeholder="What do you build? What are you hoping to learn from the club?"
+                      placeholderTextColor={colors.textMuted}
+                      value={bio}
+                      onChangeText={setBio}
+                      multiline
+                      numberOfLines={4}
+                      textAlignVertical="top"
+                    />
+                  </View>
+                </>
+              )}
+
+              {/* Password / Confirm */}
+              <View style={styles.formRow2}>
+                <View style={[styles.formGroup, styles.formGroupHalf]}>
+                  <Text style={styles.formLabel}>Password *</Text>
+                  <View style={styles.passwordWrapper}>
+                    <TextInput
+                      style={[styles.formInput, styles.passwordInput]}
+                      placeholder="Create password"
+                      placeholderTextColor={colors.textMuted}
+                      value={password}
+                      onChangeText={setPassword}
+                      secureTextEntry={!showPassword}
+                      autoComplete="new-password"
+                    />
+                    <TouchableOpacity
+                      style={styles.eyeBtn}
+                      onPress={() => setShowPassword(!showPassword)}
+                      accessibilityRole="button"
+                      accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
+                    >
+                      <Text style={styles.eyeIcon}>{showPassword ? '🙈' : '👁️'}</Text>
+                    </TouchableOpacity>
+                  </View>
+                  {password.length > 0 && (
+                    <View style={styles.requirements}>
+                      {requirements.map((req, i) => (
+                        <View key={i} style={styles.requirementRow}>
+                          <View
                             style={[
-                              styles.requirementIconText,
-                              req.met && styles.requirementIconTextMet,
+                              styles.requirementIcon,
+                              req.met && styles.requirementIconMet,
                             ]}
                           >
-                            {req.met ? '✓' : '○'}
+                            <Text
+                              style={[
+                                styles.requirementIconText,
+                                req.met && styles.requirementIconTextMet,
+                              ]}
+                            >
+                              {req.met ? '✓' : '○'}
+                            </Text>
+                          </View>
+                          <Text
+                            style={[
+                              styles.requirementText,
+                              req.met && styles.requirementTextMet,
+                            ]}
+                          >
+                            {req.text}
                           </Text>
                         </View>
-                        <Text
-                          style={[
-                            styles.requirementText,
-                            req.met && styles.requirementTextMet,
-                          ]}
-                        >
-                          {req.text}
-                        </Text>
-                      </View>
-                    ))}
+                      ))}
+                    </View>
+                  )}
+                </View>
+
+                <View style={[styles.formGroup, styles.formGroupHalf]}>
+                  <Text style={styles.formLabel}>Confirm *</Text>
+                  <View style={styles.passwordWrapper}>
+                    <TextInput
+                      style={[styles.formInput, styles.passwordInput]}
+                      placeholder="Confirm password"
+                      placeholderTextColor={colors.textMuted}
+                      value={confirm}
+                      onChangeText={setConfirm}
+                      secureTextEntry={!showConfirm}
+                      autoComplete="new-password"
+                    />
+                    <TouchableOpacity
+                      style={styles.eyeBtn}
+                      onPress={() => setShowConfirm(!showConfirm)}
+                      accessibilityRole="button"
+                      accessibilityLabel={showConfirm ? 'Hide password' : 'Show password'}
+                    >
+                      <Text style={styles.eyeIcon}>{showConfirm ? '🙈' : '👁️'}</Text>
+                    </TouchableOpacity>
                   </View>
-                )}
-              </View>
-
-              <View style={[styles.formGroup, styles.formGroupHalf]}>
-                <Text style={styles.formLabel}>Confirm *</Text>
-                <View style={styles.passwordWrapper}>
-                  <TextInput
-                    style={[styles.formInput, styles.passwordInput]}
-                    placeholder="Confirm password"
-                    placeholderTextColor={colors.textMuted}
-                    value={confirm}
-                    onChangeText={setConfirm}
-                    secureTextEntry={!showConfirm}
-                    autoComplete="new-password"
-                  />
-                  <TouchableOpacity
-                    style={styles.eyeBtn}
-                    onPress={() => setShowConfirm(!showConfirm)}
-                  >
-                    <Text style={styles.eyeIcon}>{showConfirm ? '🙈' : '👁️'}</Text>
-                  </TouchableOpacity>
                 </View>
               </View>
-            </View>
 
-            {/* Submit */}
-            <TouchableOpacity
-              style={[styles.submitBtn, loading && styles.submitBtnDisabled]}
-              onPress={handleRegister}
-              disabled={loading}
-              activeOpacity={0.85}
-            >
-              {loading ? (
-                <View style={styles.loadingRow}>
-                  <ActivityIndicator color={colors.white} size="small" />
-                  <Text style={styles.submitBtnText}>Creating account...</Text>
-                </View>
-              ) : (
-                <Text style={styles.submitBtnText}>
-                  Register as {role === 'innovator' ? 'Innovator' : 'Funder'}
-                </Text>
-              )}
-            </TouchableOpacity>
-
-            <Text style={styles.switchText}>
-              Already have an account?{' '}
-              <Text
-                style={styles.switchLink}
-                onPress={() => navigation.navigate('Login')}
+              {/* Submit */}
+              <TouchableOpacity
+                style={[styles.submitBtn, loading && styles.submitBtnDisabled]}
+                onPress={handleRegister}
+                disabled={loading}
+                activeOpacity={0.85}
               >
-                Sign in
+                <LinearGradient
+                  colors={[colors.primary, colors.primaryDark]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.submitGradient}
+                >
+                  {loading ? (
+                    <View style={styles.loadingRow}>
+                      <ActivityIndicator color={colors.white} size="small" />
+                      <Text style={styles.submitBtnText}>Creating account…</Text>
+                    </View>
+                  ) : (
+                    <Text style={styles.submitBtnText}>Create account →</Text>
+                  )}
+                </LinearGradient>
+              </TouchableOpacity>
+
+              <Text style={styles.switchText}>
+                Already have an account?{' '}
+                <Text
+                  style={styles.switchLink}
+                  onPress={() => navigation.navigate('Login')}
+                >
+                  Sign in
+                </Text>
               </Text>
-            </Text>
-          </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+            </View>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
+    </LinearGradient>
   );
 }
 
+// Pull `route.params?.role` into the initial dropdown value. Falls
+// back to 'innovator' so the field has a sane default if nothing
+// was passed (e.g. opening Register from the CTA on Landing).
+function initialRole(param) {
+  return ROLE_OPTIONS.includes(param) ? param : 'innovator';
+}
+
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.white,
-  },
-  keyboardView: {
-    flex: 1,
-  },
+  gradient: { flex: 1 },
+  safe: { flex: 1 },
+  keyboardView: { flex: 1 },
   scrollContent: {
     flexGrow: 1,
+    paddingHorizontal: 20,
+    paddingVertical: 28,
   },
 
-  /* Brand header — compact, single line */
-  brandHeader: {
-    paddingTop: 24,
-    paddingBottom: 24,
-    paddingHorizontal: 20,
+  /* Card */
+  card: {
+    backgroundColor: colors.white,
+    borderRadius: 24,
+    padding: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.18,
+    shadowRadius: 28,
+    elevation: 10,
   },
-  brand: {
+
+  /* Brand row */
+  brandRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    marginBottom: 20,
   },
   brandLogo: {
     width: 44,
@@ -350,89 +604,50 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: '700',
   },
+  brandText: { flex: 1 },
   brandName: {
-    color: colors.white,
-    fontWeight: '700',
+    color: colors.textPrimary,
+    fontWeight: '800',
     fontSize: 16,
+    letterSpacing: -0.2,
   },
   brandTagline: {
-    color: '#cbd5e1',
+    color: colors.textSecondary,
     fontSize: 12,
     marginTop: 2,
   },
 
-  /* Form section */
-  formSection: {
-    width: '100%',
-    maxWidth: 480,
-    alignSelf: 'center',
-    paddingHorizontal: 24,
-    paddingTop: 32,
-    paddingBottom: 32,
-  },
+  /* Form heading */
   formHeading: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: '800',
     color: colors.textPrimary,
-    marginBottom: 6,
+    marginBottom: 4,
     letterSpacing: -0.5,
   },
   formSubheading: {
-    fontSize: 14,
+    fontSize: 13,
     color: colors.textSecondary,
-    marginBottom: 24,
-    lineHeight: 20,
-  },
-
-  /* Role toggle */
-  roleToggle: {
-    flexDirection: 'row',
-    backgroundColor: colors.white,
-    borderRadius: 14,
-    padding: 5,
     marginBottom: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(0, 0, 0, 0.08)',
-  },
-  roleBtn: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 10,
-    alignItems: 'center',
-  },
-  roleBtnActive: {
-    backgroundColor: colors.primary,
-    shadowColor: '#f97316',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
-    elevation: 2,
-  },
-  roleBtnText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.textSecondary,
-  },
-  roleBtnTextActive: {
-    color: colors.white,
+    lineHeight: 19,
   },
 
-  /* Funder notice */
+  /* Notice */
   notice: {
-    backgroundColor: 'rgba(249, 115, 22, 0.08)',
+    backgroundColor: 'rgba(124, 58, 237, 0.08)',
     borderWidth: 1,
-    borderColor: 'rgba(249, 115, 22, 0.2)',
+    borderColor: 'rgba(124, 58, 237, 0.2)',
     borderRadius: 12,
-    padding: 14,
+    padding: 12,
     marginBottom: 16,
   },
   noticeText: {
-    fontSize: 13,
-    color: '#92400e',
-    lineHeight: 19,
+    fontSize: 12,
+    color: '#5b21b6',
+    lineHeight: 18,
   },
   noticeStrong: {
-    color: colors.primaryDark,
+    color: '#4c1d95',
     fontWeight: '700',
   },
 
@@ -442,9 +657,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#fecaca',
     borderRadius: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    marginBottom: 16,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    marginBottom: 14,
   },
   errorText: {
     color: '#dc2626',
@@ -454,10 +669,10 @@ const styles = StyleSheet.create({
   /* Form */
   formRow2: {
     flexDirection: 'row',
-    gap: 12,
+    gap: 10,
   },
   formGroup: {
-    marginBottom: 18,
+    marginBottom: 16,
   },
   formGroupHalf: {
     flex: 1,
@@ -473,18 +688,28 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     borderRadius: 12,
     paddingVertical: 13,
-    paddingHorizontal: 16,
+    paddingHorizontal: 14,
     fontSize: 14,
     color: colors.textPrimary,
     backgroundColor: colors.white,
     width: '100%',
+  },
+  textarea: {
+    minHeight: 90,
+    paddingTop: 12,
+  },
+  helperText: {
+    fontSize: 11,
+    color: colors.textMuted,
+    marginTop: 6,
+    lineHeight: 16,
   },
   passwordWrapper: {
     position: 'relative',
     justifyContent: 'center',
   },
   passwordInput: {
-    paddingRight: 48,
+    paddingRight: 44,
   },
   eyeBtn: {
     position: 'absolute',
@@ -492,7 +717,7 @@ const styles = StyleSheet.create({
     top: 0,
     bottom: 0,
     justifyContent: 'center',
-    paddingHorizontal: 10,
+    paddingHorizontal: 8,
   },
   eyeIcon: {
     fontSize: 18,
@@ -500,17 +725,17 @@ const styles = StyleSheet.create({
 
   /* Password requirements */
   requirements: {
-    marginTop: 10,
+    marginTop: 8,
   },
   requirementRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 6,
+    marginBottom: 4,
   },
   requirementIcon: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
     backgroundColor: '#e2e8f0',
     alignItems: 'center',
     justifyContent: 'center',
@@ -521,7 +746,7 @@ const styles = StyleSheet.create({
   },
   requirementIconText: {
     color: colors.textMuted,
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '700',
   },
   requirementIconTextMet: {
@@ -538,20 +763,22 @@ const styles = StyleSheet.create({
 
   /* Submit */
   submitBtn: {
-    backgroundColor: colors.primary,
-    paddingVertical: 15,
     borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 8,
+    overflow: 'hidden',
+    marginTop: 6,
     shadowColor: '#f97316',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 14,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 16,
+    elevation: 5,
   },
   submitBtnDisabled: {
-    opacity: 0.65,
+    opacity: 0.7,
+  },
+  submitGradient: {
+    paddingVertical: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   loadingRow: {
     flexDirection: 'row',
@@ -569,7 +796,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontSize: 14,
     color: colors.textSecondary,
-    marginTop: 24,
+    marginTop: 22,
   },
   switchLink: {
     color: colors.primary,

@@ -1,5 +1,6 @@
 package com.example.Innovation_backend.auth;
 
+import com.example.Innovation_backend.common.EmailService;
 import com.example.Innovation_backend.config.RefreshProperties;
 import com.example.Innovation_backend.organization.OrganizationService;
 import com.example.Innovation_backend.security.CookieUtils;
@@ -33,6 +34,7 @@ public class AuthService {
     private final CookieUtils cookieUtils;
     private final RefreshProperties refreshProps;
     private final EmailVerificationService emailVerification;
+    private final EmailService emailService;
 
     /**
      * Register a user, optionally bootstrap a pending Organization for funders,
@@ -41,6 +43,11 @@ public class AuthService {
      */
     @Transactional
     public AuthResponse register(RegisterRequest req) {
+        return register(req, LinkAudience.WEB);
+    }
+
+    @Transactional
+    public AuthResponse register(RegisterRequest req, LinkAudience audience) {
         UserResponse created = userService.register(req);
 
         if (created.role() == Role.FUNDER) {
@@ -48,6 +55,12 @@ public class AuthService {
                     .orElseThrow(() -> new IllegalStateException(
                             "Just-created funder not found: " + created.email()));
             organizationService.createPendingForFunder(funder);
+
+            // Phase 7 — funders get a friendly "account created, awaiting admin
+            // approval" acknowledgement in addition to the verification link.
+            // Sent AFTER createPendingForFunder so the email body can mention
+            // the org. EmailService swallows failures, so this never blocks.
+            sendFunderRegistrationAck(funder);
         }
 
         // Phase 6B — issue a verification token and email the link. Failures
@@ -55,11 +68,35 @@ public class AuthService {
         emailVerification.issue(
                 EmailVerificationToken.Surface.INNOVATION,
                 created.id(),
-                created.email()
+                created.email(),
+                audience
         );
 
         String accessToken = jwtService.issue(created.email(), created.id(), created.role().json());
         return new AuthResponse(accessToken, created);
+    }
+
+    /**
+     * "Welcome — your funder account is created. We've sent a verification link
+     * to your email; once you click it an admin will review your organization
+     * and you'll be able to post opportunities."
+     */
+    private void sendFunderRegistrationAck(User funder) {
+        String firstName = funder.getFirstName() == null ? "" : funder.getFirstName().trim();
+        String greeting = firstName.isEmpty() ? "Hi," : "Hi " + firstName + ",";
+        String body = greeting + "\n\n"
+                + "Your funder account on Innovation Hub has been created successfully.\n\n"
+                + "What's next:\n"
+                + "  1. Check your inbox for a verification email and click the link to confirm your address.\n"
+                + "  2. Our admin team will review your organisation details and approve your account.\n"
+                + "  3. Once approved you'll be able to post opportunities, review applications, and connect with innovators.\n\n"
+                + "We'll send you another email as soon as your account is approved.\n\n"
+                + "— The Innovation Hub team";
+        emailService.send(
+                funder.getEmail(),
+                "Welcome to Innovation Hub — your funder account is awaiting approval",
+                body
+        );
     }
 
     /** Phase 6B — consume a verification token and mark the user verified. */
@@ -80,6 +117,11 @@ public class AuthService {
     /** Phase 6B — re-issue a verification token for the calling principal. */
     @Transactional
     public void resendVerification() {
+        resendVerification(LinkAudience.WEB);
+    }
+
+    @Transactional
+    public void resendVerification(LinkAudience audience) {
         String email = currentPrincipalEmail();
         User u = userRepository.findByEmail(email)
                 .orElseThrow(() -> new IllegalArgumentException("User not found: " + email));
@@ -89,7 +131,38 @@ public class AuthService {
         emailVerification.issue(
                 EmailVerificationToken.Surface.INNOVATION,
                 u.getId(),
-                u.getEmail()
+                u.getEmail(),
+                audience
+        );
+    }
+
+    /**
+     * Email-bodied variant of {@link #resendVerification} for unauthenticated
+     * callers (e.g. a mobile user who closed the app right after registering
+     * and now wants another link). Mirrors {@code forgot-password}'s
+     * anti-enumeration contract: never throws and never confirms whether the
+     * account exists or has already verified. Callers should return a 202 with
+     * an empty body either way.
+     */
+    @Transactional
+    public void resendVerificationForEmail(String email, LinkAudience audience) {
+        String normalised = email == null ? "" : email.trim().toLowerCase();
+        if (normalised.isBlank()) return;
+
+        User u = userRepository.findByEmail(normalised).orElse(null);
+        if (u == null) {
+            log.debug("resendVerificationForEmail: unknown principal, suppressing");
+            return;
+        }
+        if (u.isEmailVerified()) {
+            log.debug("resendVerificationForEmail: already verified, suppressing");
+            return;
+        }
+        emailVerification.issue(
+                EmailVerificationToken.Surface.INNOVATION,
+                u.getId(),
+                u.getEmail(),
+                audience
         );
     }
 

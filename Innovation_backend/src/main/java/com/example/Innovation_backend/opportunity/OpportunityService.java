@@ -13,7 +13,11 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Business logic for opportunities. Three rules enforced here:
@@ -47,14 +51,84 @@ public class OpportunityService {
                 ? opportunityRepo.findAllByStatusOrderByCreatedAtDesc(effective)
                 : opportunityRepo.findAllByStatusAndTypeOrderByCreatedAtDesc(effective, typeFilter);
 
-        return rows.stream().map(this::toResponse).toList();
+        // Public reads don't carry applicantCount (no use for it in the
+        // discoverability flow and the per-row extra query isn't worth it).
+        return rows.stream().map(o -> toResponse(o, 0L)).toList();
     }
 
     @Transactional(readOnly = true)
     public OpportunityResponse getOnePublic(Long id) {
         Opportunity o = opportunityRepo.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Opportunity not found: " + id));
-        return toResponse(o);
+        return toResponse(o, 0L);
+    }
+
+    // ── Funder owner-scoped reads ────────────────────────────────────
+
+    /**
+     * Phase 5 — returns every opportunity owned by the calling funder (open,
+     * closed, and draft), newest first. Each row carries its real
+     * {@code applicantCount} so the mobile {@code MyOpportunities} list and
+     * the FunderDashboard can render honest totals without N+1 lookups.
+     */
+    @Transactional(readOnly = true)
+    public List<OpportunityResponse> listMine(String email) {
+        User funder = mustFunder(email);
+        List<Opportunity> rows = opportunityRepo.findAllByFunderIdOrderByCreatedAtDesc(funder.getId());
+        Map<Long, Long> counts = loadApplicantCounts(rows);
+        return rows.stream()
+                .map(o -> toResponse(o, counts.getOrDefault(o.getId(), 0L)))
+                .toList();
+    }
+
+    /**
+     * Phase 5 — dedicated close/reopen flow. The PUT path is reserved for
+     * editing the mutable body fields; status changes go here so the public
+     * "OPEN only" invariant stays under server control.
+     *
+     * <p>{@link OpportunityStatus#DRAFT} is intentionally not settable through
+     * this endpoint — DRAFT is reserved for a future "save as draft" UI. A
+     * request for {@code ?status=draft} throws {@link IllegalArgumentException}
+     * which the global handler maps to 400.
+     */
+    @Transactional
+    public OpportunityResponse updateStatus(Long id, OpportunityStatus newStatus, String email) {
+        if (newStatus == OpportunityStatus.DRAFT) {
+            // Surface a clear client-facing message; GlobalExceptionHandler maps
+            // IllegalArgumentException → 400 Bad Request.
+            throw new IllegalArgumentException("status must be 'open' or 'closed'");
+        }
+        User funder = mustFunder(email);
+        Opportunity o = loadOwned(id, funder.getId());
+        o.setStatus(newStatus);
+        Opportunity saved = opportunityRepo.save(o);
+        return toResponse(saved, applicantCount(saved.getId()));
+    }
+
+    private long applicantCount(Long opportunityId) {
+        Map<Long, Long> counts = loadApplicantCounts(List.of(
+                opportunityRepo.findById(opportunityId).orElse(null)
+        ));
+        return counts.getOrDefault(opportunityId, 0L);
+    }
+
+    /**
+     * Single grouped query that returns {@code (opportunityId → count)} for
+     * the given opportunities. Opportunities with zero applications are absent
+     * from the result — callers fall back to 0L via {@code getOrDefault}.
+     */
+    private Map<Long, Long> loadApplicantCounts(List<Opportunity> opportunities) {
+        if (opportunities == null || opportunities.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        List<Long> ids = new ArrayList<>(opportunities.size());
+        for (Opportunity o : opportunities) ids.add(o.getId());
+        List<Object[]> rows = opportunityRepo.countApplicationsByOpportunityIds(ids);
+        Map<Long, Long> out = new HashMap<>(rows.size() * 2);
+        for (Object[] row : rows) {
+            out.put((Long) row[0], (Long) row[1]);
+        }
+        return out;
     }
 
     // ── Funder mutations ─────────────────────────────────────────────
@@ -72,9 +146,18 @@ public class OpportunityService {
                 .amount(req.amount())
                 .deadline(req.deadline())
                 .location(req.location())
+                .requirements(req.requirements())
+                .tags(normaliseTags(req.tags()))
+                // Phase 8 — application form type. Null in the request means
+                // the funder didn't pick one, which we treat as the default
+                // (full innovation application) so post-Phase-7 callers
+                // without UI support still create a valid opportunity.
+                .applicationFormType(req.applicationFormType() != null
+                        ? req.applicationFormType()
+                        : com.example.Innovation_backend.opportunity.ApplicationFormType.INNOVATION_APPLICATION)
                 // status defaults to OPEN in the entity builder
                 .build();
-        return toResponse(opportunityRepo.save(o));
+        return toResponse(opportunityRepo.save(o), 0L);
     }
 
     @Transactional
@@ -89,8 +172,15 @@ public class OpportunityService {
         o.setAmount(req.amount());
         o.setDeadline(req.deadline());
         o.setLocation(req.location());
+        o.setRequirements(req.requirements());
+        o.setTags(normaliseTags(req.tags()));
+        // Phase 8 — same defaulting as create. A null in the request means
+        // "keep what was there" via the existing setter fallback.
+        if (req.applicationFormType() != null) {
+            o.setApplicationFormType(req.applicationFormType());
+        }
         // status intentionally NOT updated here — close/reopen is a dedicated flow.
-        return toResponse(opportunityRepo.save(o));
+        return toResponse(opportunityRepo.save(o), applicantCount(o.getId()));
     }
 
     @Transactional
@@ -106,6 +196,23 @@ public class OpportunityService {
             o = loadOwned(id, caller.getId());
         }
         opportunityRepo.delete(o);
+    }
+
+    /**
+     * Phase 5 — strip blanks/nulls and bound the length so we never persist
+     * an empty string from a half-typed tag input. Returns an empty list when
+     * the request leaves the field null (which keeps the column NOT NULL happy
+     * with the JSONB default).
+     */
+    private static List<String> normaliseTags(List<String> raw) {
+        if (raw == null || raw.isEmpty()) return new ArrayList<>();
+        List<String> out = new ArrayList<>(raw.size());
+        for (String t : raw) {
+            if (t == null) continue;
+            String trimmed = t.trim();
+            if (!trimmed.isEmpty()) out.add(trimmed);
+        }
+        return out;
     }
 
     // ── Internals ────────────────────────────────────────────────────
@@ -190,10 +297,18 @@ public class OpportunityService {
      * Package-private so {@link AdminOpportunityController} can reuse the same
      * projection without forcing the admin view to format its own DTO.
      */
-    OpportunityResponse toResponse(Opportunity o) {
+    OpportunityResponse toResponse(Opportunity o, long applicantCount) {
         String orgName = organizationRepo.findByFunderId(o.getFunder().getId())
                 .map(Organization::getName)
                 .orElse(null);
-        return OpportunityResponse.fromEntity(o, orgName);
+        return OpportunityResponse.fromEntity(o, orgName, applicantCount);
+    }
+
+    /**
+     * Convenience overload for callers that don't care about
+     * {@code applicantCount} (public reads, admin reads). Passes {@code 0}.
+     */
+    OpportunityResponse toResponse(Opportunity o) {
+        return toResponse(o, 0L);
     }
 }

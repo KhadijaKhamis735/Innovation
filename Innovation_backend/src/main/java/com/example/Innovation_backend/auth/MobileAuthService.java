@@ -43,7 +43,9 @@ public class MobileAuthService {
      */
     @Transactional
     public MobileAuthResponse register(RegisterRequest req) {
-        AuthResponse auth = authService.register(req);
+        // Mobile-issued emails primary the app link (innovationmobile://…),
+        // web fallback below.
+        AuthResponse auth = authService.register(req, LinkAudience.MOBILE);
         User u = userRepository.findByEmail(auth.user().email())
                 .orElseThrow(() -> new IllegalStateException(
                         "Just-created user not found: " + auth.user().email()));

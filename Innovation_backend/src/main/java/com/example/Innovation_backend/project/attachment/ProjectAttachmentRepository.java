@@ -13,5 +13,11 @@ public interface ProjectAttachmentRepository extends JpaRepository<ProjectAttach
 
     long countByProjectId(Long projectId);
 
+    /**
+     * Backs the evidence-required gate on {@code PATCH /api/projects/{id}/phase}
+     * — counts both uploaded files and links of the given kind.
+     */
+    long countByProjectIdAndKind(Long projectId, AttachmentKind kind);
+
     Optional<ProjectAttachment> findByIdAndProjectId(Long id, Long projectId);
 }

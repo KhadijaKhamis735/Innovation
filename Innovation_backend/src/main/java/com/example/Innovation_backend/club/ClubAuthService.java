@@ -2,6 +2,7 @@ package com.example.Innovation_backend.club;
 
 import com.example.Innovation_backend.auth.EmailVerificationService;
 import com.example.Innovation_backend.auth.EmailVerificationToken;
+import com.example.Innovation_backend.auth.LinkAudience;
 import com.example.Innovation_backend.auth.RefreshToken;
 import com.example.Innovation_backend.auth.RefreshTokenService;
 import com.example.Innovation_backend.club.dto.ClubAuthResponse;
@@ -146,6 +147,35 @@ public class ClubAuthService {
                 EmailVerificationToken.Surface.CLUB,
                 m.getId(),
                 m.getEmail()
+        );
+    }
+
+    /**
+     * Phase 7 — email-bodied variant of {@link #resendClubVerification} for
+     * unauthenticated callers (e.g. a mobile user who closed the app right
+     * after registering). Mirrors the innovation-side anti-enumeration
+     * contract: never throws and never confirms whether the account exists
+     * or has already verified. The controller should always return 202.
+     */
+    @Transactional
+    public void resendClubVerificationForEmail(String email) {
+        String normalised = email == null ? "" : email.trim().toLowerCase();
+        if (normalised.isBlank()) return;
+
+        ClubMember m = memberRepo.findByEmail(normalised).orElse(null);
+        if (m == null) {
+            log.debug("resendClubVerificationForEmail: unknown principal, suppressing");
+            return;
+        }
+        if (m.isEmailVerified()) {
+            log.debug("resendClubVerificationForEmail: already verified, suppressing");
+            return;
+        }
+        emailVerification.issue(
+                EmailVerificationToken.Surface.CLUB,
+                m.getId(),
+                m.getEmail(),
+                LinkAudience.MOBILE
         );
     }
 

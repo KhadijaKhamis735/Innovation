@@ -55,6 +55,36 @@ public class OpportunityController {
         return opportunityService.getOnePublic(id);
     }
 
+    // ── Funder owner-scoped reads ────────────────────────────────────
+
+    /**
+     * Phase 5 — every opportunity owned by the authenticated funder
+     * (open + closed + draft), newest first. Each row carries its real
+     * {@code applicantCount} so the mobile {@code MyOpportunities} list and
+     * the FunderDashboard can render honest totals without N+1 lookups.
+     */
+    @GetMapping("/me")
+    @PreAuthorize("hasRole('FUNDER')")
+    public List<OpportunityResponse> listMine() {
+        return opportunityService.listMine(currentEmail());
+    }
+
+    /**
+     * Phase 5 — close / reopen an opportunity. Body-less; the new status is
+     * supplied via {@code ?status=open|closed} so we don't need a new DTO.
+     *
+     * <p>{@code DRAFT} is intentionally not exposed here — that's reserved
+     * for a future "save as draft" UI. A request for {@code status=draft}
+     * is rejected with 400 by {@link OpportunityService#updateStatus}.
+     */
+    @PatchMapping("/{id}/status")
+    @PreAuthorize("hasRole('FUNDER')")
+    public OpportunityResponse updateStatus(@PathVariable Long id,
+                                            @RequestParam("status") OpportunityStatus status) {
+        writeGuard.requireVerified();
+        return opportunityService.updateStatus(id, status, currentEmail());
+    }
+
     // ── Funder mutations ─────────────────────────────────────────────
 
     @PostMapping

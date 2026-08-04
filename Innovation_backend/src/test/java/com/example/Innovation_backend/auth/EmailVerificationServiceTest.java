@@ -25,10 +25,13 @@ import static org.mockito.Mockito.when;
 /**
  * Unit tests for {@link EmailVerificationService}. Pure Mockito — no Spring, no DB.
  *
- * The two {@code @Value} fields ({@code verificationUrlBase},
- * {@code expirationMs}) are wired by Spring at runtime; in unit tests we
- * inject them with {@link ReflectionTestUtils} so {@code @InjectMocks} can
- * construct the service.
+ * The {@code @Value} fields ({@code verificationUrlWeb},
+ * {@code verificationUrlApp}, {@code expirationMs}) are wired by Spring at
+ * runtime; in unit tests we inject them with {@link ReflectionTestUtils} so
+ * {@code @InjectMocks} can construct the service. Phase 2 split the single
+ * {@code verificationUrlBase} into the two separate fields and threaded a
+ * {@link LinkAudience} through {@code issue} — these tests assert both links
+ * appear in the body and that the audience controls their ordering.
  */
 @ExtendWith(MockitoExtension.class)
 class EmailVerificationServiceTest {
@@ -38,20 +41,74 @@ class EmailVerificationServiceTest {
 
     private EmailVerificationService service;
 
-    private static final String URL_BASE = "http://localhost:5173/verify?token=";
+    private static final String URL_WEB = "http://localhost:5173/verify?token=";
+    private static final String URL_APP = "innovationmobile://verify?token=";
     private static final long TWENTY_FOUR_HOURS_MS = 24L * 60 * 60 * 1000;
 
     @BeforeEach
     void setUp() {
         service = new EmailVerificationService(repo, emailService);
-        ReflectionTestUtils.setField(service, "verificationUrlBase", URL_BASE);
+        ReflectionTestUtils.setField(service, "verificationUrlWeb", URL_WEB);
+        ReflectionTestUtils.setField(service, "verificationUrlApp", URL_APP);
         ReflectionTestUtils.setField(service, "expirationMs", TWENTY_FOUR_HOURS_MS);
     }
 
-    // ── issue() ─────────────────────────────────────────────────────
+    // ── issue() — Phase 2: both links in the body, audience-aware order
 
     @Test
-    void issue_invalidatesPriorTokensAndSendsEmailWithCorrectLink() {
+    void issue_webAudience_bodyContainsBothLinks_webFirst() {
+        when(repo.findAllBySurfaceAndUserId(any(), any())).thenReturn(List.of());
+        when(repo.save(any(EmailVerificationToken.class))).thenAnswer(inv -> {
+            EmailVerificationToken t = inv.getArgument(0);
+            if (t.getId() == null) t.setId(1L);
+            return t;
+        });
+
+        EmailVerificationService.Issued issued = service.issue(
+                EmailVerificationToken.Surface.INNOVATION, 42L, "u@example.com",
+                LinkAudience.WEB);
+
+        ArgumentCaptor<String> body = ArgumentCaptor.forClass(String.class);
+        verify(emailService).send(anyString(), anyString(), body.capture());
+        // Both links are present.
+        assertThat(body.getValue()).contains(URL_WEB + issued.rawToken());
+        assertThat(body.getValue()).contains(URL_APP + issued.rawToken());
+        // Web is primary for the WEB audience, app is the fallback — so
+        // the web link appears strictly before the app link in the body.
+        int webIdx = body.getValue().indexOf(URL_WEB + issued.rawToken());
+        int appIdx = body.getValue().indexOf(URL_APP + issued.rawToken());
+        assertThat(webIdx).isPositive();
+        assertThat(appIdx).isPositive();
+        assertThat(webIdx).isLessThan(appIdx);
+    }
+
+    @Test
+    void issue_mobileAudience_bodyContainsBothLinks_appFirst() {
+        when(repo.findAllBySurfaceAndUserId(any(), any())).thenReturn(List.of());
+        when(repo.save(any(EmailVerificationToken.class))).thenAnswer(inv -> {
+            EmailVerificationToken t = inv.getArgument(0);
+            if (t.getId() == null) t.setId(1L);
+            return t;
+        });
+
+        EmailVerificationService.Issued issued = service.issue(
+                EmailVerificationToken.Surface.INNOVATION, 42L, "u@example.com",
+                LinkAudience.MOBILE);
+
+        ArgumentCaptor<String> body = ArgumentCaptor.forClass(String.class);
+        verify(emailService).send(anyString(), anyString(), body.capture());
+        assertThat(body.getValue()).contains(URL_WEB + issued.rawToken());
+        assertThat(body.getValue()).contains(URL_APP + issued.rawToken());
+        // App is primary for the MOBILE audience — must appear first.
+        int webIdx = body.getValue().indexOf(URL_WEB + issued.rawToken());
+        int appIdx = body.getValue().indexOf(URL_APP + issued.rawToken());
+        assertThat(webIdx).isPositive();
+        assertThat(appIdx).isPositive();
+        assertThat(appIdx).isLessThan(webIdx);
+    }
+
+    @Test
+    void issue_invalidatesPriorTokensAndSetsId() {
         EmailVerificationToken old = EmailVerificationToken.builder()
                 .surface(EmailVerificationToken.Surface.INNOVATION)
                 .userId(42L)
@@ -73,18 +130,32 @@ class EmailVerificationServiceTest {
         assertThat(old.getConsumedAt()).isNotNull();
         verify(repo).save(old);
 
-        // Email went out with the link containing the raw token.
-        ArgumentCaptor<String> to = ArgumentCaptor.forClass(String.class);
-        ArgumentCaptor<String> subject = ArgumentCaptor.forClass(String.class);
-        ArgumentCaptor<String> body = ArgumentCaptor.forClass(String.class);
-        verify(emailService).send(to.capture(), subject.capture(), body.capture());
-        assertThat(to.getValue()).isEqualTo("u@example.com");
-        assertThat(body.getValue()).contains(URL_BASE + issued.rawToken());
-
         // Expiry is 24h from now (give or take runtime).
         assertThat(issued.row().getExpiresAt())
                 .isAfter(Instant.now().plus(TWENTY_FOUR_HOURS_MS - 5_000, ChronoUnit.MILLIS))
                 .isBefore(Instant.now().plus(TWENTY_FOUR_HOURS_MS + 5_000, ChronoUnit.MILLIS));
+    }
+
+    @Test
+    void issue_defaultAudience_isWeb() {
+        // The no-audience overload must default to WEB so existing callers
+        // (register + resendVerification on the web surface) get the same
+        // primary-then-fallback layout they always did.
+        when(repo.findAllBySurfaceAndUserId(any(), any())).thenReturn(List.of());
+        when(repo.save(any(EmailVerificationToken.class))).thenAnswer(inv -> {
+            EmailVerificationToken t = inv.getArgument(0);
+            if (t.getId() == null) t.setId(1L);
+            return t;
+        });
+
+        EmailVerificationService.Issued issued = service.issue(
+                EmailVerificationToken.Surface.INNOVATION, 1L, "u@example.com");
+
+        ArgumentCaptor<String> body = ArgumentCaptor.forClass(String.class);
+        verify(emailService).send(anyString(), anyString(), body.capture());
+        int webIdx = body.getValue().indexOf(URL_WEB + issued.rawToken());
+        int appIdx = body.getValue().indexOf(URL_APP + issued.rawToken());
+        assertThat(webIdx).isLessThan(appIdx);
     }
 
     @Test

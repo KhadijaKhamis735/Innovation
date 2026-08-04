@@ -51,8 +51,11 @@ public class PasswordResetService {
     private final EmailService emailService;
     private final PasswordEncoder passwordEncoder;
 
-    @Value("${app.email.reset-url}")
-    private String resetUrlBase;
+    @Value("${app.email.reset-url-web}")
+    private String resetUrlWeb;
+
+    @Value("${app.email.reset-url-app}")
+    private String resetUrlApp;
 
     @Value("${app.email.reset-expiration-ms:3600000}") // default 1h
     private long expirationMs;
@@ -66,6 +69,11 @@ public class PasswordResetService {
      */
     @Transactional
     public Optional<Issued> issueForEmail(String email) {
+        return issueForEmail(email, LinkAudience.WEB);
+    }
+
+    @Transactional
+    public Optional<Issued> issueForEmail(String email, LinkAudience audience) {
         String normalised = email == null ? "" : email.trim().toLowerCase();
         if (normalised.isBlank()) return Optional.empty();
 
@@ -75,7 +83,8 @@ public class PasswordResetService {
             return Optional.of(issueForPrincipal(
                     PasswordResetToken.Surface.INNOVATION,
                     user.getId(),
-                    user.getEmail()
+                    user.getEmail(),
+                    audience
             ));
         }
         ClubMember member = clubMemberRepository.findByEmail(normalised).orElse(null);
@@ -83,7 +92,8 @@ public class PasswordResetService {
             return Optional.of(issueForPrincipal(
                     PasswordResetToken.Surface.CLUB,
                     member.getId(),
-                    member.getEmail()
+                    member.getEmail(),
+                    audience
             ));
         }
         ClubLeader leader = clubLeaderRepository.findByEmail(normalised).orElse(null);
@@ -91,7 +101,8 @@ public class PasswordResetService {
             return Optional.of(issueForPrincipal(
                     PasswordResetToken.Surface.CLUB,
                     leader.getId(),
-                    leader.getEmail()
+                    leader.getEmail(),
+                    audience
             ));
         }
         // Unknown email — return empty so the endpoint can always 200.
@@ -100,7 +111,8 @@ public class PasswordResetService {
 
     private Issued issueForPrincipal(PasswordResetToken.Surface surface,
                                      Long userId,
-                                     String toEmail) {
+                                     String toEmail,
+                                     LinkAudience audience) {
         // Invalidate any earlier outstanding tokens for this principal.
         for (PasswordResetToken old : repo.findAllBySurfaceAndUserId(surface, userId)) {
             if (old.getConsumedAt() == null) {
@@ -122,25 +134,32 @@ public class PasswordResetService {
                 .build();
         row = repo.save(row);
 
-        String link = resetUrlBase + raw;
+        String appLink = resetUrlApp + raw;
+        String webLink = resetUrlWeb + raw;
+        String primary = audience == LinkAudience.MOBILE ? appLink : webLink;
+        String fallback = audience == LinkAudience.MOBILE ? webLink : appLink;
+        String primaryLabel = audience == LinkAudience.MOBILE ? "Open in app" : "Open in browser";
+        String fallbackLabel = audience == LinkAudience.MOBILE ? "Open in browser" : "Open in app";
+
         String subject = "Reset your Innovation account password";
         String body = """
                 Hello,
 
                 We received a request to reset the password on your Innovation account.
-                If you made this request, click the link below to set a new password:
+                If you made this request, tap one of the links below to set a new password:
 
-                %s
+                %s: %s
+                %s: %s
 
                 This link expires in 1 hour. If you didn't make this request, you can
                 safely ignore this email — your password will remain unchanged.
 
                 — Innovation Team
-                """.formatted(link);
+                """.formatted(primaryLabel, primary, fallbackLabel, fallback);
 
         emailService.send(toEmail, subject, body);
-        log.info("Issued password reset token id={} surface={} userId={}",
-                row.getId(), surface, userId);
+        log.info("Issued password reset token id={} surface={} userId={} audience={}",
+                row.getId(), surface, userId, audience);
         return new Issued(row, raw);
     }
 

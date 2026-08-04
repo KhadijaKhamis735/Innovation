@@ -1,6 +1,10 @@
 package com.example.Innovation_backend.admin;
 
 import com.example.Innovation_backend.admin.dto.AdminUserResponse;
+import com.example.Innovation_backend.application.ApplicationRepository;
+import com.example.Innovation_backend.opportunity.OpportunityRepository;
+import com.example.Innovation_backend.organization.OrganizationRepository;
+import com.example.Innovation_backend.organization.OrganizationStatus;
 import com.example.Innovation_backend.user.User;
 import com.example.Innovation_backend.user.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -19,7 +23,7 @@ import java.util.Map;
  *
  * Endpoints:
  *   GET    /api/admin/users              → list every user
- *   GET    /api/admin/stats              → simple counts
+ *   GET    /api/admin/stats              → simple counts (users + opportunities + applications + pending orgs)
  *   PATCH  /api/admin/users/{id}/status  → activate / deactivate
  */
 @RestController
@@ -29,6 +33,9 @@ import java.util.Map;
 public class AdminController {
 
     private final UserRepository userRepository;
+    private final OpportunityRepository opportunityRepository;
+    private final ApplicationRepository applicationRepository;
+    private final OrganizationRepository organizationRepository;
 
     /** List every user. Order: most recent first. */
     @GetMapping("/users")
@@ -56,6 +63,12 @@ public class AdminController {
                 .filter(u -> "active".equals(u.getStatus())).count();
         long inactive = total - active;
 
+        long totalOpportunities = opportunityRepository.count();
+        long totalApplications = applicationRepository.count();
+        long pendingOrganizations = organizationRepository
+                .findAllByStatusOrderBySubmittedDateAsc(OrganizationStatus.PENDING)
+                .size();
+
         return Map.of(
                 "totalUsers", total,
                 "byRole", Map.of(
@@ -66,7 +79,10 @@ public class AdminController {
                 "byStatus", Map.of(
                         "active", active,
                         "inactive", inactive
-                )
+                ),
+                "totalOpportunities", totalOpportunities,
+                "totalApplications", totalApplications,
+                "pendingOrganizations", pendingOrganizations
         );
     }
 

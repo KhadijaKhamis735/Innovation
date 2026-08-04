@@ -6,6 +6,10 @@ import java.time.Instant;
  * Metadata projection of an attachment. Bytes are streamed on
  * {@code GET /api/projects/{id}/attachments/{attId}} — this DTO never carries
  * content.
+ *
+ * {@code type} is derived, not stored: {@code "link"} when the row is an
+ * external URL, {@code "file"} otherwise. Clients branch on this single field
+ * rather than null-checking {@code linkUrl}.
  */
 public record ProjectAttachmentResponse(
         Long id,
@@ -15,6 +19,8 @@ public record ProjectAttachmentResponse(
         long sizeBytes,
         AttachmentKind kind,
         String caption,
+        String type,
+        String linkUrl,
         Long uploadedByUserId,
         Long uploadedByMemberId,
         String uploadedByName,
@@ -44,6 +50,8 @@ public record ProjectAttachmentResponse(
                 a.getSizeBytes(),
                 a.getKind(),
                 a.getCaption(),
+                a.getLinkUrl() != null ? "link" : "file",
+                a.getLinkUrl(),
                 uploadedByUserId,
                 uploadedByMemberId,
                 uploadedByName,

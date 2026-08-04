@@ -1,10 +1,12 @@
 package com.example.Innovation_backend.organization;
 
+import com.example.Innovation_backend.common.EmailService;
 import com.example.Innovation_backend.organization.dto.OrganizationResponse;
 import com.example.Innovation_backend.user.Role;
 import com.example.Innovation_backend.user.User;
 import com.example.Innovation_backend.user.UserRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,10 +19,12 @@ import java.util.List;
  */
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class OrganizationService {
 
     private final OrganizationRepository orgRepo;
     private final UserRepository userRepo;
+    private final EmailService emailService;
 
     @Transactional(readOnly = true)
     public List<OrganizationResponse> listByStatus(OrganizationStatus status, String adminEmail) {
@@ -40,8 +44,59 @@ public class OrganizationService {
             // No-op; return current state
             return OrganizationResponse.fromEntity(o);
         }
+        OrganizationStatus previousStatus = o.getStatus();
         o.setStatus(newStatus);
-        return OrganizationResponse.fromEntity(orgRepo.save(o));
+        Organization saved = orgRepo.save(o);
+
+        // Phase 7 — notify the funder when their org is approved so they can
+        // proceed with posting opportunities. We only email on the explicit
+        // PENDING → APPROVED edge; demotions (APPROVED → REJECTED) and
+        // re-approvals are intentionally not handled here. EmailService swallows
+        // failures so the admin action still succeeds.
+        if (previousStatus == OrganizationStatus.PENDING
+                && newStatus == OrganizationStatus.APPROVED) {
+            sendApprovalEmail(saved);
+        }
+        return OrganizationResponse.fromEntity(saved);
+    }
+
+    /**
+     * "Your organisation has been approved — you can now post opportunities."
+     * Reuses the funder's email from the org record; falls back to the linked
+     * User row if the org's email was never set.
+     */
+    private void sendApprovalEmail(Organization org) {
+        String recipient = org.getEmail();
+        if (recipient == null || recipient.isBlank()) {
+            if (org.getFunder() != null) {
+                recipient = org.getFunder().getEmail();
+            }
+        }
+        if (recipient == null || recipient.isBlank()) {
+            log.warn("Cannot send approval email for org {} — no email on record", org.getId());
+            return;
+        }
+        String orgName = (org.getName() == null || org.getName().isBlank())
+                ? "your organisation"
+                : org.getName();
+        String firstName = (org.getFunder() != null && org.getFunder().getFirstName() != null)
+                ? org.getFunder().getFirstName().trim()
+                : "";
+        String greeting = firstName.isEmpty() ? "Hi," : "Hi " + firstName + ",";
+        String body = greeting + "\n\n"
+                + "Good news — your organisation \"" + orgName + "\" has been approved on Innovation Hub.\n\n"
+                + "You can now:\n"
+                + "  • Post funding opportunities for innovators to apply to.\n"
+                + "  • Review and manage applications from your dashboard.\n"
+                + "  • Update your organisation profile any time from Settings.\n\n"
+                + "Sign in to get started: http://localhost:5173/login\n\n"
+                + "Welcome aboard!\n\n"
+                + "— The Innovation Hub team";
+        emailService.send(
+                recipient,
+                "Your Innovation Hub funder account is approved",
+                body
+        );
     }
 
     /**

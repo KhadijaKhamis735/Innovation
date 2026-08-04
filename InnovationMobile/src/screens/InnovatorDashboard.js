@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -7,43 +7,21 @@ import {
   TouchableOpacity,
   Modal,
   Pressable,
+  RefreshControl,
+  ActivityIndicator,
   useWindowDimensions,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { colors } from '../styles/colors';
 import Sidebar from '../components/Sidebar';
-import { useApp } from '../context/AppContext';
-
-// Mirrors web `InnovatorDashboard` data
-const stats = [
-  { label: 'Active Projects', value: '3', icon: '📁', color: 'blue' },
-  { label: 'Applications Sent', value: '5', icon: '📤', color: 'orange' },
-  { label: 'In Review', value: '2', icon: '⏰', color: 'purple' },
-  { label: 'Successful', value: '1', icon: '✅', color: 'green' },
-];
-
-const recentApplications = [
-  { id: 1, title: 'Innovation Grant 2026', org: 'UNDP Tanzania', status: 'Under Review', date: 'May 15, 2026' },
-  { id: 2, title: 'Youth Innovation Challenge', org: 'UNESCO', status: 'Submitted', date: 'May 12, 2026' },
-  { id: 3, title: 'Tech Startup Fund', org: 'AfricArena', status: 'Accepted', date: 'May 5, 2026' },
-];
-
-const notifications = [
-  { id: 1, title: 'Application Under Review', message: 'Your application for Innovation Grant 2026 is being reviewed', time: '2 hours ago', unread: true },
-  { id: 2, title: 'New Opportunity Available', message: 'New funding opportunity from Gates Foundation', time: '1 day ago', unread: true },
-  { id: 3, title: 'Project Milestone Completed', message: 'Your project Smart Water Monitor reached Prototype phase', time: '3 days ago', unread: false },
-];
+import { useAuth } from '../context/AuthContext';
+import { opportunitiesApi, applicationsApi } from '../api/opportunities';
+import { stageLabel, stagePalette, PAST_STAGES } from '../api/stages';
 
 const quickActions = [
   { label: 'Browse Opportunities', icon: '🔍', screen: 'BrowseOpportunities', color: 'primary' },
   { label: 'My Applications', icon: '📄', screen: 'MyApplications', color: 'secondary' },
   { label: 'View Projects', icon: '📁', screen: 'MyProjects', color: 'secondary' },
-];
-
-// Mirrors the web's AuthContext.opportunities
-const opportunities = [
-  { id: 1, title: 'Innovation Grant 2026', org: 'UNDP Tanzania', type: 'Grant', amount: '$5,000', deadline: '2026-06-10' },
-  { id: 2, title: 'Youth Innovation Challenge', org: 'UNESCO', type: 'Challenge', amount: '$3,000', deadline: '2026-07-01' },
-  { id: 3, title: 'Tech Startup Fund', org: 'AfricArena', type: 'Acceleration', amount: '$25,000', deadline: '2026-08-15' },
 ];
 
 const helpItems = [
@@ -52,20 +30,19 @@ const helpItems = [
   { title: 'Settings', desc: 'Manage your account', icon: '⚙️', screen: 'Settings' },
 ];
 
-const formatDeadline = (iso) => {
-  const d = new Date(iso);
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-};
-
-const getStatusPalette = (status) => {
-  switch (status) {
-    case 'Under Review': return { bg: colors.statusReviewBg, text: colors.statusReviewText };
-    case 'Submitted':   return { bg: colors.statusSubmittedBg, text: colors.statusSubmittedText };
-    case 'Accepted':    return { bg: colors.statusAcceptedBg, text: colors.statusAcceptedText };
-    case 'Rejected':    return { bg: colors.statusRejectedBg, text: colors.statusRejectedText };
-    default:            return { bg: colors.border, text: colors.textSecondary };
+// Safe date formatter used for both opportunity deadlines and application
+// timestamps. Returns the raw ISO string on missing/invalid input so the
+// dashboard never renders a fatal crash.
+const formatDate = (iso) => {
+  if (!iso) return '';
+  try {
+    return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  } catch {
+    return iso;
   }
 };
+const formatDeadline = formatDate;
+const formatAppliedAt = formatDate;
 
 const getStatPalette = (color) => {
   switch (color) {
@@ -82,12 +59,14 @@ export default function InnovatorDashboard({ navigation }) {
   const [notifOpen, setNotifOpen] = useState(false);
   const [activeScreen, setActiveScreen] = useState('dashboard');
 
-  // Pull user + club status from context so the Sidebar and Quick
-  // Actions can react to the user's role(s).
-  const { user: appUser, isClubMember } = useApp();
-
-  // Mirrors the web's `user?.firstName`
-  const user = { firstName: appUser.firstName || 'Innovator', lastName: appUser.lastName || '' };
+  // `useAuth().user` is the source of truth for the authenticated
+  // innovator — the dashboard greets the user by first/last name from
+  // the JWT principal.
+  const { user: authUser } = useAuth();
+  const user = {
+    firstName: authUser?.firstName || 'Innovator',
+    lastName:  authUser?.lastName  || '',
+  };
 
   const handleSidebarNav = (screen) => {
     setActiveScreen(screen);
@@ -95,7 +74,67 @@ export default function InnovatorDashboard({ navigation }) {
 
   const { height: windowHeight } = useWindowDimensions();
 
-  const unreadCount = notifications.filter((n) => n.unread).length;
+  // Phase 3 — load applications + a small slice of the public open
+  // feed. Both errors are surfaced as "no rows" rather than a hard fail
+  // so the rest of the dashboard still renders on cold start.
+  const [applications, setApplications] = useState([]);
+  const [feedOpps, setFeedOpps] = useState([]);
+  const [refreshing, setRefreshing] = useState(false);
+  const [appsLoading, setAppsLoading] = useState(true);
+  const [feedLoading, setFeedLoading] = useState(true);
+
+  const load = useCallback(async (mode = 'initial') => {
+    if (mode === 'refresh') setRefreshing(true);
+    if (mode === 'initial') { setAppsLoading(true); setFeedLoading(true); }
+    try {
+      // Reuse opportunitiesApi — listMine is the innovator-only /applications/me
+      const [apps, opp] = await Promise.all([
+        applicationsApi.listMine().catch(() => []),
+        opportunitiesApi.list({ status: 'open' }).catch(() => []),
+      ]);
+      // Guard — don't write state if the user has already navigated away.
+      if (!mountedRef.current) return;
+      setApplications(Array.isArray(apps) ? apps : []);
+      setFeedOpps(Array.isArray(opp) ? opp.slice(0, 3) : []);
+    } finally {
+      if (!mountedRef.current) return;
+      if (mode === 'refresh') setRefreshing(false);
+      if (mode === 'initial') { setAppsLoading(false); setFeedLoading(false); }
+    }
+  }, []);
+
+  // Mounted guard — prevents state writes after the screen unmounts.
+  const mountedRef = React.useRef(true);
+  useEffect(() => () => { mountedRef.current = false; }, []);
+
+  useEffect(() => { load('initial'); }, [load]);
+
+  // Phase 7 — refresh on focus so a stage change on the web or on a
+  // nested screen is reflected when the user returns to the dashboard.
+  useFocusEffect(useCallback(() => { load('refresh'); }, [load]));
+
+  // Derived stats from real applications — replaces seeded mock values.
+  const stats = useMemo(() => {
+    const total = applications.length;
+    const inReview = applications.filter(
+      (a) => a.stage && ['under_review', 'interview', 'pitch', 'shortlisted', 'submitted'].includes(a.stage),
+    ).length;
+    const successful = applications.filter((a) => PAST_STAGES.has(a.stage) && a.stage === 'accepted').length;
+    return [
+      // Active projects belongs to My Projects phase — leave the label
+      // but keep it queryable; we surface a 0 here because Phase 3
+      // doesn't read projects. Update in Phase 4.
+      { label: 'Active Projects', value: '—', icon: '📁', color: 'blue' },
+      { label: 'Applications Sent', value: String(total), icon: '📤', color: 'orange' },
+      { label: 'In Review', value: String(inReview), icon: '⏰', color: 'purple' },
+      { label: 'Successful', value: String(successful), icon: '✅', color: 'green' },
+    ];
+  }, [applications]);
+
+  // Notifications stay unread; funder-driven stage changes aren't yet
+  // pushed to the mobile inbox (deferred).
+  const notifications = [];
+  const unreadCount = 0;
   const userInitials = `${user.firstName?.[0] || 'U'}${user.lastName?.[0] || ''}`;
 
   return (
@@ -107,7 +146,6 @@ export default function InnovatorDashboard({ navigation }) {
           onNavigate={handleSidebarNav}
           onClose={() => setSidebarOpen(false)}
           navigation={navigation}
-          isClubMember={isClubMember}
         />
       )}
 
@@ -133,6 +171,7 @@ export default function InnovatorDashboard({ navigation }) {
             style={styles.iconBtn}
             onPress={() => setNotifOpen(true)}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            disabled={notifications.length === 0}
           >
             <Text style={styles.iconBtnText}>🔔</Text>
             {unreadCount > 0 && (
@@ -156,6 +195,13 @@ export default function InnovatorDashboard({ navigation }) {
         scrollEnabled={true}
         alwaysBounceVertical={true}
         bounces={true}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => load('refresh')}
+            tintColor={colors.primary}
+          />
+        }
       >
         {/* Stats grid — 2 cols on mobile (4 on web) */}
         <View style={styles.statsGrid}>
@@ -186,30 +232,46 @@ export default function InnovatorDashboard({ navigation }) {
             </TouchableOpacity>
           </View>
 
-          <View style={styles.appsList}>
-            {recentApplications.map((app) => {
-              const palette = getStatusPalette(app.status);
-              return (
-                <TouchableOpacity
-                  key={app.id}
-                  style={styles.appCard}
-                  onPress={() => navigation.navigate('MyApplications')}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.appCardHeader}>
-                    <Text style={styles.appTitle} numberOfLines={1}>{app.title}</Text>
-                    <View style={[styles.statusBadge, { backgroundColor: palette.bg }]}>
-                      <Text style={[styles.statusBadgeText, { color: palette.text }]}>
-                        {app.status}
+          {appsLoading ? (
+            <View style={styles.rowLoader}>
+              <ActivityIndicator color={colors.primary} />
+            </View>
+          ) : applications.length === 0 ? (
+            <View style={styles.emptyInline}>
+              <Text style={styles.emptyInlineText}>
+                You haven't applied to any opportunities yet. Browse the feed below to get started.
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.appsList}>
+              {applications.slice(0, 3).map((app) => {
+                const palette = stagePalette(app.stage);
+                return (
+                  <TouchableOpacity
+                    key={app.id}
+                    style={styles.appCard}
+                    onPress={() => navigation.navigate('MyApplications')}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.appCardHeader}>
+                      <Text style={styles.appTitle} numberOfLines={1}>
+                        {app.opportunityTitle}
                       </Text>
+                      <View style={[styles.statusBadge, { backgroundColor: palette.bg }]}>
+                        <Text style={[styles.statusBadgeText, { color: palette.text }]}>
+                          {stageLabel(app.stage)}
+                        </Text>
+                      </View>
                     </View>
-                  </View>
-                  <Text style={styles.appOrg}>{app.org}</Text>
-                  <Text style={styles.appDate}>{app.date}</Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
+                    <Text style={styles.appOrg}>{app.ideaTitle || '—'}</Text>
+                    <Text style={styles.appDate}>
+                      Submitted {formatAppliedAt(app.appliedAt)}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          )}
         </View>
 
         {/* Quick Actions */}
@@ -270,66 +332,70 @@ export default function InnovatorDashboard({ navigation }) {
             </TouchableOpacity>
           </View>
 
-          <View style={styles.oppList}>
-            {opportunities.map((opp) => (
-              <TouchableOpacity
-                key={opp.id}
-                style={styles.oppItem}
-                onPress={() => navigation.navigate('BrowseOpportunities')}
-                activeOpacity={0.7}
-              >
-                <View style={styles.oppHeader}>
-                  <Text style={styles.oppTitle} numberOfLines={1}>{opp.title}</Text>
-                  <View style={styles.oppTypeBadge}>
-                    <Text style={styles.oppTypeBadgeText}>{opp.type}</Text>
+          {feedLoading ? (
+            <View style={styles.rowLoader}>
+              <ActivityIndicator color={colors.primary} />
+            </View>
+          ) : feedOpps.length === 0 ? (
+            <View style={styles.emptyInline}>
+              <Text style={styles.emptyInlineText}>
+                No open opportunities right now. Check back soon.
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.oppList}>
+              {feedOpps.map((opp) => (
+                <TouchableOpacity
+                  key={opp.id}
+                  style={styles.oppItem}
+                  onPress={() => navigation.navigate('BrowseOpportunities')}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.oppHeader}>
+                    <Text style={styles.oppTitle} numberOfLines={1}>{opp.title}</Text>
+                    <View style={styles.oppTypeBadge}>
+                      <Text style={styles.oppTypeBadgeText}>{(opp.type ?? 'opportunity').toString()}</Text>
+                    </View>
                   </View>
-                </View>
-                <Text style={styles.oppOrg}>{opp.org}</Text>
-                <View style={styles.oppMeta}>
-                  <Text style={styles.oppAmount}>{opp.amount}</Text>
-                  <Text style={styles.oppDeadline}>📅 {formatDeadline(opp.deadline)}</Text>
-                </View>
-              </TouchableOpacity>
-            ))}
-          </View>
+                  <Text style={styles.oppOrg}>
+                    {opp.funderOrganizationName || opp.funderName || '—'}
+                  </Text>
+                  <View style={styles.oppMeta}>
+                    <Text style={styles.oppAmount}>{opp.amount || 'Equity-free'}</Text>
+                    <Text style={styles.oppDeadline}>📅 {formatDeadline(opp.deadline)}</Text>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
         </View>
 
-        {/* Club — surfaces the club module from the innovator side */}
+        {/* Club — surfaces the new register-as-club-member flow */}
         <View style={styles.card}>
           <View style={styles.cardHeader}>
             <View style={{ flex: 1 }}>
               <Text style={styles.cardTitle}>Club</Text>
               <Text style={styles.cardSubtitle}>
-                {isClubMember
-                  ? 'You\'re a member. Access club activities, leadership, and your shared projects.'
-                  : 'Join the club to unlock activities, leadership, and shared projects.'}
+                Join the club to unlock activities, leadership, and shared projects.
               </Text>
             </View>
           </View>
 
           <View style={styles.clubRow}>
-            <View style={[styles.clubBadge, isClubMember ? styles.clubBadgeActive : styles.clubBadgeInactive]}>
-              <Text style={styles.clubBadgeIcon}>{isClubMember ? '🎓' : '✚'}</Text>
+            <View style={[styles.clubBadge, styles.clubBadgeInactive]}>
+              <Text style={styles.clubBadgeIcon}>✚</Text>
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.clubLabel}>
-                {isClubMember ? 'Club membership' : 'Become a club member'}
-              </Text>
+              <Text style={styles.clubLabel}>Become a club member</Text>
               <Text style={styles.clubMeta}>
-                {isClubMember
-                  ? `Status: ${appUser.membershipStatus}`
-                  : 'Pick your university + reg number'}
+                Pick your university + reg number
               </Text>
             </View>
             <TouchableOpacity
-              style={[styles.clubBtn, isClubMember ? styles.clubBtnSecondary : styles.clubBtnPrimary]}
-              onPress={() =>
-                navigation.navigate(isClubMember ? 'ClubDashboard' : 'ClubRegistration')
-              }
+              style={[styles.clubBtn, styles.clubBtnPrimary]}
+              onPress={() => navigation.navigate('Register', { role: 'club_member' })}
             >
-              <Text style={[styles.clubBtnText, isClubMember ? styles.clubBtnTextSecondary : styles.clubBtnTextPrimary]}>
-                {isClubMember ? 'Open →' : 'Join →'}
-              </Text>
+              <Text style={[styles.clubBtnText, styles.clubBtnTextPrimary]}>Join →</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -582,6 +648,17 @@ const styles = StyleSheet.create({
   /* Recent applications — vertical stack */
   appsList: {
     gap: 10,
+  },
+  /* Inline loader + empty state used by Recent Applications / Latest Opportunities */
+  rowLoader: {
+    paddingVertical: 18, alignItems: 'center',
+  },
+  emptyInline: {
+    paddingVertical: 14, paddingHorizontal: 8,
+    borderRadius: 10, backgroundColor: colors.background,
+  },
+  emptyInlineText: {
+    fontSize: 12, color: colors.textSecondary, textAlign: 'center', lineHeight: 18,
   },
   appCard: {
     padding: 12,

@@ -1,76 +1,85 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  TextInput,
   Modal,
   Pressable,
+  RefreshControl,
   useWindowDimensions,
 } from 'react-native';
 import { colors } from '../styles/colors';
 import Sidebar from '../components/Sidebar';
+import { useAuth } from '../context/AuthContext';
+import { opportunitiesApi } from '../api/opportunities';
 
+// Full backend enum → palette. Includes the three new types (Equity Funding,
+// Seed Funding, Prize) that the legacy mock truncated.
 const typeConfig = {
   Grant: { bg: 'rgba(2, 132, 199, 0.12)', color: '#0284c7' },
   Accelerator: { bg: 'rgba(139, 92, 246, 0.12)', color: '#7c3aed' },
   Challenge: { bg: 'rgba(217, 119, 6, 0.12)', color: '#d97706' },
   Fellowship: { bg: 'rgba(22, 163, 74, 0.12)', color: '#16a34a' },
+  'Equity Funding': { bg: 'rgba(190, 24, 93, 0.12)', color: '#be185d' },
+  'Seed Funding': { bg: 'rgba(29, 78, 216, 0.12)', color: '#1d4ed8' },
+  Prize: { bg: 'rgba(185, 28, 28, 0.12)', color: '#b91c1c' },
 };
+// Lookup keyed by lowercase backend enum value, so we can find the right
+// palette even if the API sends back "grant" / "equity_funding" / etc.
+const typePaletteByLower = Object.fromEntries(
+  Object.entries(typeConfig).map(([k, v]) => [k.toLowerCase().replace(/ /g, '_'), v])
+);
 
-const mockOpportunities = [
-  {
-    id: 1,
-    title: 'Green Tech Innovation Grant',
-    type: 'Grant',
-    description: 'Supporting innovative solutions for environmental sustainability and climate action.',
-    amount: '$25,000',
-    deadline: 'Jun 30, 2026',
-    location: 'Remote',
-    applicants: 18,
-    tags: ['Environment', 'Technology', 'Sustainability'],
-    status: 'Open',
-  },
-  {
-    id: 2,
-    title: 'Women in STEM Accelerator',
-    type: 'Accelerator',
-    description: 'A 6-month intensive program supporting women-led tech startups.',
-    amount: 'Mentorship + $15,000',
-    deadline: 'Jul 15, 2026',
-    location: 'Zanzibar',
-    applicants: 34,
-    tags: ['Women', 'STEM', 'Accelerator'],
-    status: 'Open',
-  },
-  {
-    id: 3,
-    title: 'Digital Health Hackathon',
-    type: 'Challenge',
-    description: '48-hour hackathon focused on healthcare innovation in developing regions.',
-    amount: '$5,000',
-    deadline: 'May 20, 2026',
-    location: 'Virtual',
-    applicants: 52,
-    tags: ['HealthTech', 'Hackathon', 'Innovation'],
-    status: 'Closed',
-  },
+// Backend enum ("grant", "equity_funding") → UI Title Case ("Grant", "Equity Funding")
+const displayType = (raw) =>
+  String(raw || '')
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+
+// Filter chips stay in Title Case. We map each label back to the lowercase
+// backend form before comparing with rows.
+const FILTER_OPTIONS = [
+  { label: 'All',          match: null },
+  { label: 'Grants',       match: 'grant' },
+  { label: 'Accelerators', match: 'accelerator' },
+  { label: 'Challenges',   match: 'challenge' },
+  { label: 'Fellowships',  match: 'fellowship' },
 ];
 
-const mockApplicants = [
-  { initials: 'AM', name: 'Amara Mensah', role: 'Tech Innovator, Ghana', status: 'Under Review', palette: { bg: 'rgba(245, 158, 11, 0.18)', color: '#d97706' } },
-  { initials: 'KO', name: 'Kwame Osei', role: 'Product Designer, Kenya', status: 'Shortlisted', palette: { bg: 'rgba(124, 58, 237, 0.18)', color: '#7c3aed' } },
-  { initials: 'LN', name: 'Lena Nkosi', role: 'Software Engineer, South Africa', status: 'Interview', palette: { bg: 'rgba(59, 130, 246, 0.18)', color: '#3b82f6' } },
-  { initials: 'JM', name: 'James Mwangi', role: 'Finance Expert, Uganda', status: 'Pitch', palette: { bg: 'rgba(139, 92, 246, 0.18)', color: '#8b5cf6' } },
-  { initials: 'AW', name: 'Amina Wanjiku', role: 'Marketing Specialist, Tanzania', status: 'Accepted', palette: { bg: 'rgba(34, 197, 94, 0.18)', color: '#16a34a' } },
-];
+// UI Title Case → backend enum.
+const toBackendType = (label) =>
+  String(label || '').toUpperCase().replace(/ /g, '_');
+
+// Backend error → toast copy. Mirrors PostOpportunity.errorMessageFor but
+// here the failure is most often the status PATCH / DELETE, not create.
+function errorMessageFor(err, fallback) {
+  const status = err?.status;
+  const msg = err?.message ?? '';
+  if (status === 0) return 'Network error — check your connection and retry';
+  if (status === 403 && msg.startsWith('Please verify your email'))
+    return 'Please verify your email before managing opportunities';
+  if (status === 401) return 'Your session expired — sign in again';
+  return msg || fallback;
+}
 
 export default function MyOpportunities({ navigation }) {
+  const { user: authUser } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activeScreen, setActiveScreen] = useState('myOpportunities');
   const [filter, setFilter] = useState('All');
+  const [opportunities, setOpportunities] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
   const [selectedOpp, setSelectedOpp] = useState(null);
+  const [acting, setActing] = useState(false);
+
+  // ── Local edit form state — populated when the modal opens. ────────
+  const [editForm, setEditForm] = useState(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const handleSidebarNav = (screen) => {
     setActiveScreen(screen);
@@ -78,15 +87,135 @@ export default function MyOpportunities({ navigation }) {
 
   const { height: windowHeight } = useWindowDimensions();
 
-  const myOpportunities = mockOpportunities;
-  const filteredOpps = filter === 'All'
+  const showToast = (msg) => {
+    setErrorMsg(msg);
+    setTimeout(() => setErrorMsg(''), 4000);
+  };
+
+  // ── Load ──────────────────────────────────────────────────────────
+  const load = useCallback(async (mode = 'initial') => {
+    if (mode === 'initial') setLoading(true);
+    else setRefreshing(true);
+    try {
+      const data = await opportunitiesApi.listMine();
+      setOpportunities(Array.isArray(data) ? data : []);
+    } catch (err) {
+      showToast(errorMessageFor(err, 'Could not load opportunities'));
+      setOpportunities([]);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => { load('initial'); }, [load]);
+
+  // ── Derived data ──────────────────────────────────────────────────
+  const myOpportunities = useMemo(
+    () => opportunities.filter((o) => !authUser || !o.funderId || o.funderId === authUser.id),
+    [opportunities, authUser]
+  );
+
+  const activeFilter = FILTER_OPTIONS.find((f) => f.label === filter) ?? FILTER_OPTIONS[0];
+  const filteredOpps = activeFilter.match === null
     ? myOpportunities
-    : myOpportunities.filter((o) => o.type === filter);
+    : myOpportunities.filter((o) => String(o.type || '').toLowerCase() === activeFilter.match);
 
   const stats = {
     total: myOpportunities.length,
-    open: myOpportunities.filter((o) => o.status === 'Open').length,
-    totalApplicants: myOpportunities.reduce((sum, o) => sum + o.applicants, 0),
+    open: myOpportunities.filter((o) => String(o.status || '').toLowerCase() === 'open').length,
+    totalApplicants: myOpportunities.reduce((sum, o) => sum + (Number(o.applicantCount) || 0), 0),
+  };
+
+  // ── Modal handlers ────────────────────────────────────────────────
+  const openDetails = (opp) => {
+    setSelectedOpp(opp);
+    setEditForm(null);
+    setConfirmDelete(false);
+  };
+
+  const closeDetails = () => {
+    setSelectedOpp(null);
+    setEditForm(null);
+    setConfirmDelete(false);
+  };
+
+  const beginEdit = () => {
+    if (!selectedOpp) return;
+    setEditForm({
+      title: selectedOpp.title || '',
+      description: selectedOpp.description || '',
+      type: displayType(selectedOpp.type),
+      amount: selectedOpp.amount || '',
+      deadline: selectedOpp.deadline || '',
+      location: selectedOpp.location || '',
+      requirements: selectedOpp.requirements || '',
+      tags: Array.isArray(selectedOpp.tags) ? selectedOpp.tags.join(', ') : '',
+    });
+    setConfirmDelete(false);
+  };
+
+  const cancelEdit = () => setEditForm(null);
+
+  const saveEdit = async () => {
+    if (!selectedOpp || !editForm) return;
+    if (!editForm.title.trim() || !editForm.description.trim() || !editForm.deadline) {
+      showToast('Title, description and deadline are required');
+      return;
+    }
+    setActing(true);
+    try {
+      const tags = String(editForm.tags || '')
+        .split(',').map((t) => t.trim()).filter(Boolean);
+      const updated = await opportunitiesApi.update(selectedOpp.id, {
+        title: editForm.title.trim(),
+        description: editForm.description.trim(),
+        type: toBackendType(editForm.type),
+        amount: editForm.amount.trim() || null,
+        deadline: editForm.deadline || null,
+        location: editForm.location.trim() || null,
+        requirements: editForm.requirements.trim() || null,
+        tags,
+      });
+      setOpportunities((prev) => prev.map((o) => (o.id === updated.id ? updated : o)));
+      setSelectedOpp(updated);
+      setEditForm(null);
+      showToast('✓ Opportunity updated');
+    } catch (err) {
+      showToast(errorMessageFor(err, 'Could not update opportunity'));
+    } finally {
+      setActing(false);
+    }
+  };
+
+  const toggleStatus = async (newStatus) => {
+    if (!selectedOpp) return;
+    setActing(true);
+    try {
+      const updated = await opportunitiesApi.updateStatus(selectedOpp.id, newStatus);
+      setOpportunities((prev) => prev.map((o) => (o.id === updated.id ? updated : o)));
+      setSelectedOpp(updated);
+      showToast(newStatus === 'closed' ? '✓ Opportunity closed' : '✓ Opportunity reopened');
+    } catch (err) {
+      showToast(errorMessageFor(err, 'Could not change status'));
+    } finally {
+      setActing(false);
+    }
+  };
+
+  const deleteOpp = async () => {
+    if (!selectedOpp) return;
+    setActing(true);
+    try {
+      await opportunitiesApi.remove(selectedOpp.id);
+      setOpportunities((prev) => prev.filter((o) => o.id !== selectedOpp.id));
+      showToast('✓ Opportunity deleted');
+      closeDetails();
+    } catch (err) {
+      showToast(errorMessageFor(err, 'Could not delete opportunity'));
+    } finally {
+      setActing(false);
+    }
   };
 
   return (
@@ -129,6 +258,9 @@ export default function MyOpportunities({ navigation }) {
         style={[styles.body, { height: windowHeight - 80, flex: undefined }]}
         contentContainerStyle={styles.bodyContent}
         showsVerticalScrollIndicator={true}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={() => load('refresh')} />
+        }
       >
         {/* Stats — 3 cards (web uses grid-template-columns: repeat(3, 1fr)) */}
         <View style={styles.statsRow}>
@@ -161,30 +293,42 @@ export default function MyOpportunities({ navigation }) {
           </View>
         </View>
 
-        {/* Filter bar — mirrors web .filter-bar */}
+        {/* Filter bar */}
         <View style={styles.filterBar}>
-          {['All', 'Grant', 'Accelerator', 'Challenge'].map((t) => (
+          {FILTER_OPTIONS.map((opt) => (
             <TouchableOpacity
-              key={t}
-              style={[styles.filterBtn, filter === t && styles.filterBtnActive]}
-              onPress={() => setFilter(t)}
+              key={opt.label}
+              style={[styles.filterBtn, filter === opt.label && styles.filterBtnActive]}
+              onPress={() => setFilter(opt.label)}
               activeOpacity={0.85}
             >
-              <Text style={[styles.filterText, filter === t && styles.filterTextActive]}>
-                {t === 'All' ? 'All' : t === 'Grant' ? 'Grants' : t === 'Accelerator' ? 'Accelerators' : 'Challenges'}
+              <Text style={[styles.filterText, filter === opt.label && styles.filterTextActive]}>
+                {opt.label}
               </Text>
             </TouchableOpacity>
           ))}
         </View>
 
-        {/* Opportunities grid — mirrors web .opp-cards-grid */}
-        {filteredOpps.length === 0 ? (
+        {/* Loading state — preserves layout so it doesn't flash */}
+        {loading ? (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyDesc}>Loading your opportunities…</Text>
+          </View>
+        ) : filteredOpps.length === 0 ? (
           <View style={styles.emptyState}>
             <View style={styles.emptyIcon}>
               <Text style={styles.emptyIconText}>📂</Text>
             </View>
-            <Text style={styles.emptyTitle}>No opportunities found</Text>
-            <Text style={styles.emptyDesc}>Post your first opportunity to start receiving applications.</Text>
+            <Text style={styles.emptyTitle}>
+              {myOpportunities.length === 0
+                ? 'No opportunities yet'
+                : 'No opportunities match this filter'}
+            </Text>
+            <Text style={styles.emptyDesc}>
+              {myOpportunities.length === 0
+                ? 'Post your first opportunity to start receiving applications.'
+                : 'Try a different filter or post a new opportunity.'}
+            </Text>
             <TouchableOpacity
               style={styles.emptyBtn}
               onPress={() => navigation.navigate('PostOpportunity')}
@@ -196,18 +340,23 @@ export default function MyOpportunities({ navigation }) {
         ) : (
           <View style={styles.oppCardsGrid}>
             {filteredOpps.map((opp) => {
-              const typePalette = typeConfig[opp.type] || { bg: colors.primaryLight, color: colors.primary };
-              const isOpen = opp.status === 'Open';
+              const typePalette =
+                typePaletteByLower[String(opp.type || '').toLowerCase()] ||
+                { bg: colors.primaryLight, color: colors.primary };
+              const isOpen = String(opp.status || '').toLowerCase() === 'open';
+              const applicants = Number(opp.applicantCount) || 0;
+              const tags = Array.isArray(opp.tags) ? opp.tags : [];
+              const typeLabel = displayType(opp.type);
               return (
                 <TouchableOpacity
                   key={opp.id}
                   style={styles.oppCard}
-                  onPress={() => setSelectedOpp(opp)}
+                  onPress={() => openDetails(opp)}
                   activeOpacity={0.85}
                 >
                   <View style={styles.oppCardHeader}>
                     <View style={[styles.typeBadge, { backgroundColor: typePalette.bg }]}>
-                      <Text style={[styles.typeBadgeText, { color: typePalette.color }]}>{opp.type}</Text>
+                      <Text style={[styles.typeBadgeText, { color: typePalette.color }]}>{typeLabel}</Text>
                     </View>
                     <View
                       style={[
@@ -221,7 +370,7 @@ export default function MyOpportunities({ navigation }) {
                           { color: isOpen ? colors.green : colors.textSecondary },
                         ]}
                       >
-                        {opp.status}
+                        {displayType(opp.status)}
                       </Text>
                     </View>
                   </View>
@@ -238,7 +387,7 @@ export default function MyOpportunities({ navigation }) {
                     )}
                     <View style={styles.oppMetaItem}>
                       <Text style={styles.oppMetaIcon}>📅</Text>
-                      <Text style={styles.oppMetaText}>Deadline: {opp.deadline}</Text>
+                      <Text style={styles.oppMetaText}>Deadline: {opp.deadline || '—'}</Text>
                     </View>
                     {!!opp.location && (
                       <View style={styles.oppMetaItem}>
@@ -248,24 +397,23 @@ export default function MyOpportunities({ navigation }) {
                     )}
                   </View>
 
-                  <View style={styles.oppCardTags}>
-                    {opp.tags.map((tag) => (
-                      <View key={tag} style={styles.oppTag}>
-                        <Text style={styles.oppTagText}>{tag}</Text>
-                      </View>
-                    ))}
-                  </View>
+                  {tags.length > 0 && (
+                    <View style={styles.oppCardTags}>
+                      {tags.map((tag) => (
+                        <View key={tag} style={styles.oppTag}>
+                          <Text style={styles.oppTagText}>{tag}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  )}
 
                   <View style={styles.oppCardFooter}>
                     <Text style={styles.applicantCount}>
-                      {opp.applicants} applicant{opp.applicants !== 1 ? 's' : ''} applied
+                      {applicants} applicant{applicants !== 1 ? 's' : ''} applied
                     </Text>
                     <TouchableOpacity
                       style={styles.btnOutline}
-                      onPress={(e) => {
-                        e.stopPropagation?.();
-                        setSelectedOpp(opp);
-                      }}
+                      onPress={() => openDetails(opp)}
                       activeOpacity={0.85}
                     >
                       <Text style={styles.btnOutlineText}>View Details</Text>
@@ -285,18 +433,20 @@ export default function MyOpportunities({ navigation }) {
         visible={!!selectedOpp}
         animationType="fade"
         transparent
-        onRequestClose={() => setSelectedOpp(null)}
+        onRequestClose={closeDetails}
       >
-        <Pressable style={styles.modalOverlay} onPress={() => setSelectedOpp(null)}>
+        <Pressable style={styles.modalOverlay} onPress={closeDetails}>
           <Pressable style={styles.modalContent} onPress={() => {}}>
             <View style={styles.modalHeader}>
               {selectedOpp && (() => {
-                const palette = typeConfig[selectedOpp.type] || { bg: colors.primaryLight, color: colors.primary };
-                const isOpen = selectedOpp.status === 'Open';
+                const palette =
+                  typePaletteByLower[String(selectedOpp.type || '').toLowerCase()] ||
+                  { bg: colors.primaryLight, color: colors.primary };
+                const isOpen = String(selectedOpp.status || '').toLowerCase() === 'open';
                 return (
                   <View style={styles.modalHeaderBadges}>
                     <View style={[styles.typeBadge, { backgroundColor: palette.bg }]}>
-                      <Text style={[styles.typeBadgeText, { color: palette.color }]}>{selectedOpp.type}</Text>
+                      <Text style={[styles.typeBadgeText, { color: palette.color }]}>{displayType(selectedOpp.type)}</Text>
                     </View>
                     <View
                       style={[
@@ -310,19 +460,19 @@ export default function MyOpportunities({ navigation }) {
                           { color: isOpen ? colors.green : colors.textSecondary },
                         ]}
                       >
-                        {selectedOpp.status}
+                        {displayType(selectedOpp.status)}
                       </Text>
                     </View>
                   </View>
                 );
               })()}
-              <TouchableOpacity onPress={() => setSelectedOpp(null)} style={styles.modalClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <TouchableOpacity onPress={closeDetails} style={styles.modalClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
                 <Text style={styles.modalCloseText}>✕</Text>
               </TouchableOpacity>
             </View>
 
             <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
-              {selectedOpp && (
+              {selectedOpp && !editForm && (
                 <>
                   <Text style={styles.modalTitle}>{selectedOpp.title}</Text>
                   <Text style={styles.modalPosted}>Posted on Innovation Hub</Text>
@@ -336,7 +486,7 @@ export default function MyOpportunities({ navigation }) {
                     )}
                     <View style={styles.modalMetaBox}>
                       <Text style={styles.modalMetaLabel}>Deadline</Text>
-                      <Text style={styles.modalMetaValue}>{selectedOpp.deadline}</Text>
+                      <Text style={styles.modalMetaValue}>{selectedOpp.deadline || '—'}</Text>
                     </View>
                     {!!selectedOpp.location && (
                       <View style={styles.modalMetaBox}>
@@ -351,56 +501,250 @@ export default function MyOpportunities({ navigation }) {
                     <Text style={styles.modalSectionText}>{selectedOpp.description}</Text>
                   </View>
 
+                  {!!selectedOpp.requirements && (
+                    <View style={styles.modalSection}>
+                      <Text style={styles.modalSectionTitle}>Requirements</Text>
+                      <Text style={styles.modalSectionText}>{selectedOpp.requirements}</Text>
+                    </View>
+                  )}
+
+                  {Array.isArray(selectedOpp.tags) && selectedOpp.tags.length > 0 && (
+                    <View style={styles.modalSection}>
+                      <Text style={styles.modalSectionTitle}>Tags</Text>
+                      <View style={styles.oppCardTags}>
+                        {selectedOpp.tags.map((tag) => (
+                          <View key={tag} style={styles.oppTag}>
+                            <Text style={styles.oppTagText}>{tag}</Text>
+                          </View>
+                        ))}
+                      </View>
+                    </View>
+                  )}
+
                   <View style={styles.modalSection}>
-                    <Text style={styles.modalSectionTitle}>Tags</Text>
-                    <View style={styles.oppCardTags}>
-                      {selectedOpp.tags.map((tag) => (
-                        <View key={tag} style={styles.oppTag}>
-                          <Text style={styles.oppTagText}>{tag}</Text>
-                        </View>
+                    <Text style={styles.modalSectionTitle}>
+                      Applicants ({Number(selectedOpp.applicantCount) || 0})
+                    </Text>
+                    <Text style={styles.modalSectionText}>
+                      Manage applicant stages in Received Applications.
+                    </Text>
+                  </View>
+
+                  {confirmDelete ? (
+                    <View style={styles.deleteConfirmBox}>
+                      <Text style={styles.deleteConfirmText}>
+                        Delete this opportunity? This cannot be undone.
+                      </Text>
+                      <View style={styles.modalActions}>
+                        <TouchableOpacity
+                          style={[styles.btnOutline, { flex: 1 }]}
+                          onPress={() => setConfirmDelete(false)}
+                          disabled={acting}
+                          activeOpacity={0.85}
+                        >
+                          <Text style={styles.btnOutlineText}>Cancel</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.btnDanger, { flex: 1 }]}
+                          onPress={deleteOpp}
+                          disabled={acting}
+                          activeOpacity={0.85}
+                        >
+                          <Text style={styles.btnDangerText}>
+                            {acting ? 'Deleting…' : 'Yes, delete'}
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  ) : (
+                    <View style={styles.modalActions}>
+                      <TouchableOpacity
+                        style={[styles.btnOutline, { flex: 1 }]}
+                        onPress={beginEdit}
+                        disabled={acting}
+                        activeOpacity={0.85}
+                      >
+                        <Text style={styles.btnOutlineText}>Edit</Text>
+                      </TouchableOpacity>
+                      {String(selectedOpp.status || '').toLowerCase() === 'open' ? (
+                        <TouchableOpacity
+                          style={[styles.btnOutline, { flex: 1, borderColor: 'rgba(239, 68, 68, 0.4)' }]}
+                          onPress={() => toggleStatus('closed')}
+                          disabled={acting}
+                          activeOpacity={0.85}
+                        >
+                          <Text style={[styles.btnOutlineText, { color: '#dc2626' }]}>
+                            {acting ? '…' : 'Close'}
+                          </Text>
+                        </TouchableOpacity>
+                      ) : (
+                        <TouchableOpacity
+                          style={[styles.btnOutline, { flex: 1, borderColor: colors.green }]}
+                          onPress={() => toggleStatus('open')}
+                          disabled={acting}
+                          activeOpacity={0.85}
+                        >
+                          <Text style={[styles.btnOutlineText, { color: colors.green }]}>
+                            {acting ? '…' : 'Reopen'}
+                          </Text>
+                        </TouchableOpacity>
+                      )}
+                      <TouchableOpacity
+                        style={[styles.btnOutline, { flex: 1, borderColor: 'rgba(239, 68, 68, 0.4)' }]}
+                        onPress={() => setConfirmDelete(true)}
+                        disabled={acting}
+                        activeOpacity={0.85}
+                      >
+                        <Text style={[styles.btnOutlineText, { color: '#dc2626' }]}>Delete</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                </>
+              )}
+
+              {/* Edit form (replaces the read-only view while active) */}
+              {selectedOpp && editForm && (
+                <View>
+                  <Text style={styles.modalTitle}>Edit Opportunity</Text>
+
+                  <View style={styles.formGroup}>
+                    <Text style={styles.formLabel}>Title *</Text>
+                    <TextInput
+                      style={styles.formInput}
+                      value={editForm.title}
+                      onChangeText={(t) => setEditForm({ ...editForm, title: t })}
+                      placeholderTextColor={colors.textMuted}
+                    />
+                  </View>
+
+                  <View style={styles.formGroup}>
+                    <Text style={styles.formLabel}>Type</Text>
+                    <View style={styles.typeChips}>
+                      {Object.keys(typeConfig).map((t) => (
+                        <TouchableOpacity
+                          key={t}
+                          style={[
+                            styles.typeChip,
+                            editForm.type === t && styles.typeChipActive,
+                          ]}
+                          onPress={() => setEditForm({ ...editForm, type: t })}
+                          activeOpacity={0.85}
+                        >
+                          <Text
+                            style={[
+                              styles.typeChipText,
+                              editForm.type === t && styles.typeChipTextActive,
+                            ]}
+                          >
+                            {t}
+                          </Text>
+                        </TouchableOpacity>
                       ))}
                     </View>
                   </View>
 
-                  <View style={styles.modalSection}>
-                    <Text style={styles.modalSectionTitle}>Applicants ({selectedOpp.applicants})</Text>
-                    <View style={styles.applicantsList}>
-                      {mockApplicants.map((a) => (
-                        <View key={a.initials} style={styles.applicantItem}>
-                          <View style={styles.applicantLeft}>
-                            <View style={[styles.applicantAvatar, { backgroundColor: a.palette.bg }]}>
-                              <Text style={[styles.applicantAvatarText, { color: a.palette.color }]}>{a.initials}</Text>
-                            </View>
-                            <View style={styles.applicantInfo}>
-                              <Text style={styles.applicantName}>{a.name}</Text>
-                              <Text style={styles.applicantRole}>{a.role}</Text>
-                            </View>
-                          </View>
-                          <View style={[styles.applicantStatus, { backgroundColor: a.palette.bg }]}>
-                            <Text style={[styles.applicantStatusText, { color: a.palette.color }]}>{a.status}</Text>
-                          </View>
-                        </View>
-                      ))}
+                  <View style={styles.formGroup}>
+                    <Text style={styles.formLabel}>Description *</Text>
+                    <TextInput
+                      style={[styles.formInput, styles.formTextarea]}
+                      value={editForm.description}
+                      onChangeText={(t) => setEditForm({ ...editForm, description: t })}
+                      multiline
+                      placeholderTextColor={colors.textMuted}
+                    />
+                  </View>
+
+                  <View style={styles.formGroup}>
+                    <Text style={styles.formLabel}>Requirements</Text>
+                    <TextInput
+                      style={[styles.formInput, styles.formTextarea]}
+                      value={editForm.requirements}
+                      onChangeText={(t) => setEditForm({ ...editForm, requirements: t })}
+                      multiline
+                      placeholderTextColor={colors.textMuted}
+                    />
+                  </View>
+
+                  <View style={styles.formRow}>
+                    <View style={[styles.formGroup, { flex: 1 }]}>
+                      <Text style={styles.formLabel}>Award</Text>
+                      <TextInput
+                        style={styles.formInput}
+                        value={editForm.amount}
+                        onChangeText={(t) => setEditForm({ ...editForm, amount: t })}
+                        placeholderTextColor={colors.textMuted}
+                      />
                     </View>
+                    <View style={[styles.formGroup, { flex: 1 }]}>
+                      <Text style={styles.formLabel}>Deadline *</Text>
+                      <TextInput
+                        style={styles.formInput}
+                        value={editForm.deadline}
+                        onChangeText={(t) => setEditForm({ ...editForm, deadline: t })}
+                        placeholder="YYYY-MM-DD"
+                        placeholderTextColor={colors.textMuted}
+                      />
+                    </View>
+                  </View>
+
+                  <View style={styles.formRow}>
+                    <View style={[styles.formGroup, { flex: 1 }]}>
+                      <Text style={styles.formLabel}>Location</Text>
+                      <TextInput
+                        style={styles.formInput}
+                        value={editForm.location}
+                        onChangeText={(t) => setEditForm({ ...editForm, location: t })}
+                        placeholderTextColor={colors.textMuted}
+                      />
+                    </View>
+                  </View>
+
+                  <View style={styles.formGroup}>
+                    <Text style={styles.formLabel}>Tags (comma-separated)</Text>
+                    <TextInput
+                      style={styles.formInput}
+                      value={editForm.tags}
+                      onChangeText={(t) => setEditForm({ ...editForm, tags: t })}
+                      placeholder="Technology, Health, Youth"
+                      placeholderTextColor={colors.textMuted}
+                    />
                   </View>
 
                   <View style={styles.modalActions}>
-                    <TouchableOpacity style={[styles.btnOutline, { flex: 1 }]} activeOpacity={0.85}>
-                      <Text style={styles.btnOutlineText}>Edit Opportunity</Text>
-                    </TouchableOpacity>
                     <TouchableOpacity
-                      style={[styles.btnOutline, { flex: 1, borderColor: 'rgba(239, 68, 68, 0.4)' }]}
+                      style={[styles.btnOutline, { flex: 1 }]}
+                      onPress={cancelEdit}
+                      disabled={acting}
                       activeOpacity={0.85}
                     >
-                      <Text style={[styles.btnOutlineText, { color: '#dc2626' }]}>Close Opportunity</Text>
+                      <Text style={styles.btnOutlineText}>Cancel</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.btnPrimary, { flex: 1 }]}
+                      onPress={saveEdit}
+                      disabled={acting}
+                      activeOpacity={0.85}
+                    >
+                      <Text style={styles.btnPrimaryText}>
+                        {acting ? 'Saving…' : 'Save Changes'}
+                      </Text>
                     </TouchableOpacity>
                   </View>
-                </>
+                </View>
               )}
             </ScrollView>
           </Pressable>
         </Pressable>
       </Modal>
+
+      {/* Toast */}
+      {!!errorMsg && (
+        <View style={styles.toastWrap} pointerEvents="none">
+          <View style={styles.toast}>
+            <Text style={styles.toastText}>{errorMsg}</Text>
+          </View>
+        </View>
+      )}
     </View>
   );
 }
@@ -841,5 +1185,104 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 10,
     marginTop: 6,
+  },
+
+  /* Edit form (inside the detail modal) */
+  formGroup: {
+    marginBottom: 14,
+  },
+  formRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  formLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.textSecondary,
+    marginBottom: 4,
+  },
+  formInput: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: colors.textPrimary,
+    backgroundColor: colors.white,
+  },
+  formTextarea: {
+    minHeight: 90,
+    textAlignVertical: 'top',
+  },
+  typeChips: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  typeChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.white,
+  },
+  typeChipActive: {
+    backgroundColor: colors.primaryLight,
+    borderColor: colors.primary,
+  },
+  typeChipText: {
+    fontSize: 12,
+    color: colors.textSecondary,
+  },
+  typeChipTextActive: {
+    color: colors.primary,
+    fontWeight: '600',
+  },
+
+  /* Delete confirm + danger button */
+  deleteConfirmBox: {
+    backgroundColor: 'rgba(239, 68, 68, 0.06)',
+    borderRadius: 12,
+    padding: 14,
+    marginTop: 6,
+  },
+  deleteConfirmText: {
+    fontSize: 13,
+    color: '#991b1b',
+    marginBottom: 10,
+    fontWeight: '500',
+  },
+  btnDanger: {
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    backgroundColor: '#dc2626',
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  btnDangerText: {
+    color: colors.white,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+
+  /* Toast — mirrors web .toast */
+  toastWrap: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 24,
+    alignItems: 'center',
+  },
+  toast: {
+    backgroundColor: '#0f172a',
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 10,
+  },
+  toastText: {
+    color: colors.white,
+    fontSize: 13,
   },
 });

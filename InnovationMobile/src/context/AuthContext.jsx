@@ -88,12 +88,16 @@ export function AuthProvider({ children }) {
   }, []);
 
   // ── signUp ──────────────────────────────────────────────────
+  // Register only — do NOT store tokens or set the user. The
+  // user must log in explicitly afterwards (per the agreed UX:
+  // register → land on Login → enter credentials → dashboard).
   const signUp = useCallback(async (payload) => {
     setSigningIn(true);
     try {
       const data = await authApi.register(payload);
-      await setTokens({ accessToken: data.token, refreshToken: data.refreshToken });
-      setUser(data.user);
+      // Discard accessToken/refreshToken from the backend response —
+      // we deliberately don't auto-login. LoginScreen fires signIn()
+      // explicitly when the user submits credentials.
       return data.user;
     } finally {
       setSigningIn(false);
@@ -110,6 +114,17 @@ export function AuthProvider({ children }) {
     } catch {
       // swallow
     }
+    await clearTokens();
+    setUser(null);
+  }, []);
+
+  // ── clearSession (local-only wipe) ──────────────────────────
+  // Local-only sign-out: backend has already revoked the session
+  // (e.g. after PasswordResetService.consume kills every refresh
+  // family). We must NOT call /api/mobile/auth/logout here — the
+  // refresh token in SecureStore is server-side dead, so any such
+  // call would just 401 and waste a round-trip.
+  const clearSession = useCallback(async () => {
     await clearTokens();
     setUser(null);
   }, []);
@@ -132,10 +147,11 @@ export function AuthProvider({ children }) {
       signIn,
       signUp,
       signOut,
+      clearSession,
       refreshSession,
       setUser,
     };
-  }, [user, hydrated, signingIn, signIn, signUp, signOut, refreshSession]);
+  }, [user, hydrated, signingIn, signIn, signUp, signOut, clearSession, refreshSession]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
@@ -146,6 +162,24 @@ export function useAuth() {
     throw new Error('useAuth must be used inside <AuthProvider>');
   }
   return ctx;
+}
+
+/**
+ * Pure helper. Returns true when an error came from the backend's
+ * {@code WriteGuard.requireVerified()} — i.e. the user has not verified
+ * their email yet and so any write was rejected with 403. Lets write
+ * surfaces (apply / post / etc.) recognise this case and route the
+ * user to CheckEmailScreen so they can resend the verification email
+ * without adding any new state to the auth context.
+ */
+export function verificationRequired(err) {
+  if (!err) return false;
+  const msg = err?.message ?? '';
+  return (
+    err?.status === 403 &&
+    typeof msg === 'string' &&
+    msg.startsWith('Please verify your email')
+  );
 }
 
 export { ApiError };

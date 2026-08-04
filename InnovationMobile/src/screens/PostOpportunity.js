@@ -13,25 +13,67 @@ import {
 } from 'react-native';
 import { colors } from '../styles/colors';
 import Sidebar from '../components/Sidebar';
+import { opportunitiesApi } from '../api/opportunities';
 
+// All 7 backend opportunity types — Phase 5 surfaces the full set instead
+// of the truncated 4 the legacy mock showed.
 const opportunityTypes = [
   { value: 'Grant', desc: 'Funding for specific projects or research' },
   { value: 'Accelerator', desc: 'Mentorship and resources for growth' },
   { value: 'Challenge', desc: 'Competition with prizes for solutions' },
   { value: 'Fellowship', desc: 'Structured program for skill development' },
+  { value: 'Equity Funding', desc: 'Investment in exchange for equity' },
+  { value: 'Seed Funding', desc: 'Early-stage capital to get started' },
+  { value: 'Prize', desc: 'Award for winning a competition or challenge' },
 ];
+
+// Title-case label (used in the UI) ↔ backend enum (used in payloads).
+// Mirrors Innovation/src/pages/PostOpportunity.jsx so the same shape works
+// in both clients.
+const toBackendType = (label) =>
+  String(label || '').toUpperCase().replace(/ /g, '_');
+
+// Comma-separated UI input → trimmed, non-empty string array for the
+// backend. Keeps the empty case (no tags) as [] so the JSONB default
+// stays sane.
+function tagsInputToList(raw) {
+  if (!raw) return [];
+  return String(raw)
+    .split(',')
+    .map((t) => t.trim())
+    .filter(Boolean);
+}
+
+// Backend error → toast copy. We deliberately don't auto-route to the
+// verification flow on a 403 here — the user just landed on this screen
+// and is unlikely to need a re-send; the surface the backend message.
+function errorMessageFor(err) {
+  const status = err?.status;
+  const msg = err?.message ?? '';
+  if (status === 0) return 'Network error — check your connection and retry';
+  if (status === 403 && msg.startsWith('Please verify your email'))
+    return 'Please verify your email before posting opportunities';
+  if (status === 403 && msg.includes('not approved'))
+    return 'Your organization is not approved yet';
+  if (status === 401) return 'Your session expired — sign in again';
+  return msg || 'Could not post opportunity';
+}
 
 const typeColors = {
   Grant: { bg: 'rgba(2, 132, 199, 0.12)', color: '#0284c7' },
   Accelerator: { bg: 'rgba(139, 92, 246, 0.12)', color: '#7c3aed' },
   Challenge: { bg: 'rgba(217, 119, 6, 0.12)', color: '#d97706' },
   Fellowship: { bg: 'rgba(22, 163, 74, 0.12)', color: '#16a34a' },
+  'Equity Funding': { bg: 'rgba(190, 24, 93, 0.12)', color: '#be185d' },
+  'Seed Funding': { bg: 'rgba(29, 78, 216, 0.12)', color: '#1d4ed8' },
+  Prize: { bg: 'rgba(185, 28, 28, 0.12)', color: '#b91c1c' },
 };
 
 export default function PostOpportunity({ navigation }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activeScreen, setActiveScreen] = useState('postOpportunity');
   const [toast, setToast] = useState('');
+  const [submitting, setSubmitting] = useState(false);
   const [form, setForm] = useState({
     title: '',
     type: 'Grant',
@@ -52,16 +94,40 @@ export default function PostOpportunity({ navigation }) {
 
   const showToast = (msg) => {
     setToast(msg);
-    setTimeout(() => setToast(''), 3000);
+    setTimeout(() => setToast(''), 4000);
   };
 
-  const handleSubmit = () => {
-    if (!form.title || !form.description || !form.deadline) {
+  // Phase 5 — POST /api/opportunities. The backend validates the same
+  // required fields (title, description, deadline) and returns the saved
+  // opportunity on success. On 403 we surface the backend message
+  // verbatim so the user can act (verify email / wait for org approval).
+  const handleSubmit = async () => {
+    if (!form.title.trim() || !form.description.trim() || !form.deadline) {
       showToast('Please fill in all required fields');
       return;
     }
-    showToast('Opportunity posted successfully!');
-    setTimeout(() => navigation.navigate('MyOpportunities'), 1500);
+    setSubmitting(true);
+    try {
+      const payload = {
+        title: form.title.trim(),
+        description: form.description.trim(),
+        type: toBackendType(form.type),
+        amount: form.amount.trim() || null,
+        deadline: form.deadline || null,
+        location: form.location.trim() || null,
+        requirements: form.requirements.trim() || null,
+        tags: tagsInputToList(form.tags),
+      };
+      await opportunitiesApi.create(payload);
+      showToast('✓ Opportunity posted successfully!');
+      setTimeout(() => navigation.navigate('MyOpportunities'), 800);
+    } catch (err) {
+      // Don't auto-route to login/verify from here — surface the copy so
+      // the user can react without losing form state.
+      showToast(errorMessageFor(err));
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const formatDate = (dateStr) => {
@@ -335,8 +401,15 @@ export default function PostOpportunity({ navigation }) {
                 <Text style={styles.btnPrimaryText}>Continue →</Text>
               </TouchableOpacity>
             ) : (
-              <TouchableOpacity style={styles.btnPrimary} onPress={handleSubmit} activeOpacity={0.85}>
-                <Text style={styles.btnPrimaryText}>Post Opportunity ✓</Text>
+              <TouchableOpacity
+                style={[styles.btnPrimary, submitting && styles.btnDisabled]}
+                onPress={handleSubmit}
+                disabled={submitting}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.btnPrimaryText}>
+                  {submitting ? 'Posting…' : 'Post Opportunity ✓'}
+                </Text>
               </TouchableOpacity>
             )}
           </View>
@@ -467,6 +540,7 @@ const styles = StyleSheet.create({
     padding: 20,
     borderWidth: 1,
     borderColor: colors.border,
+    width: '100%',
   },
   formSectionTitle: {
     fontSize: 16,
@@ -476,6 +550,7 @@ const styles = StyleSheet.create({
   },
   formGroup: {
     marginBottom: 16,
+    width: '100%',
   },
   formLabel: {
     fontSize: 13,
@@ -492,6 +567,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.textPrimary,
     backgroundColor: colors.white,
+    width: '100%',
   },
   formTextarea: {
     minHeight: 110,
@@ -499,17 +575,19 @@ const styles = StyleSheet.create({
   },
   formRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 12,
   },
   typeGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 10,
+    width: '100%',
   },
   typeCard: {
-    flexBasis: '47%',
+    flexBasis: '48%',
     flexGrow: 1,
-    minWidth: '47%',
+    minWidth: '48%',
     padding: 14,
     borderWidth: 2,
     borderColor: colors.border,
@@ -613,6 +691,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
     borderRadius: 10,
     alignItems: 'center',
+  },
+  btnDisabled: {
+    opacity: 0.6,
   },
   btnPrimaryText: {
     color: colors.white,

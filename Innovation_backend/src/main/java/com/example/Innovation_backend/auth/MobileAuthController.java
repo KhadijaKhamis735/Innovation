@@ -5,6 +5,7 @@ import com.example.Innovation_backend.user.UserService;
 import com.example.Innovation_backend.user.dto.ForgotPasswordRequest;
 import com.example.Innovation_backend.user.dto.LoginRequest;
 import com.example.Innovation_backend.user.dto.RegisterRequest;
+import com.example.Innovation_backend.user.dto.ResendVerificationRequest;
 import com.example.Innovation_backend.user.dto.ResetPasswordRequest;
 import com.example.Innovation_backend.user.dto.UserResponse;
 import jakarta.validation.Valid;
@@ -72,7 +73,19 @@ public class MobileAuthController {
     /** Re-send the verification email to the calling principal. */
     @PostMapping("/resend-verification")
     public ResponseEntity<Void> resendVerification() {
-        authService.resendVerification();
+        authService.resendVerification(LinkAudience.MOBILE);
+        return ResponseEntity.accepted().build();
+    }
+
+    /**
+     * Email-bodied resend for users who closed the app right after registering
+     * and have no session. Always returns 202 whether or not the email is
+     * registered or already verified — same anti-enumeration contract as
+     * {@code forgot-password}.
+     */
+    @PostMapping("/resend-verification-by-email")
+    public ResponseEntity<Void> resendVerificationByEmail(@Valid @RequestBody ResendVerificationRequest req) {
+        authService.resendVerificationForEmail(req.email(), LinkAudience.MOBILE);
         return ResponseEntity.accepted().build();
     }
 
@@ -82,7 +95,7 @@ public class MobileAuthController {
      */
     @PostMapping("/forgot-password")
     public ResponseEntity<Void> forgotPassword(@Valid @RequestBody ForgotPasswordRequest req) {
-        passwordReset.issueForEmail(req.email());
+        passwordReset.issueForEmail(req.email(), LinkAudience.MOBILE);
         return ResponseEntity.accepted().build();
     }
 

@@ -17,6 +17,8 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.nio.file.NoSuchFileException;
 import java.util.List;
 
@@ -115,6 +117,104 @@ public class ProjectAttachmentService {
         return ProjectAttachmentResponse.fromEntity(attachmentRepo.save(a));
     }
 
+    // ── Add link ─────────────────────────────────────────────────────
+
+    /**
+     * Register external evidence (a URL) instead of an uploaded file.
+     *
+     * Shares the upload path's cap, lock and authz rules exactly — links and
+     * files are both "evidence" and both count toward {@code MAX_PER_PROJECT}.
+     * No bytes are written, so there is no staging/commit dance.
+     */
+    @Transactional
+    public ProjectAttachmentResponse addLink(Long projectId,
+                                             String url,
+                                             AttachmentKind kind,
+                                             String caption,
+                                             String callerEmail) {
+        String normalizedUrl = validateLinkUrl(url);
+
+        // Lock the project row to serialise concurrent writes against the 5-cap.
+        ProjectEntity p = projectRepo.findByIdForUpdate(projectId)
+                .orElseThrow(() -> new EntityNotFoundException("Project not found: " + projectId));
+
+        enforceWriteAccess(p, callerEmail);
+
+        long existing = attachmentRepo.countByProjectId(projectId);
+        if (existing >= MAX_PER_PROJECT) {
+            throw new LimitExceededException(
+                    "Project already has the maximum " + MAX_PER_PROJECT + " attachments");
+        }
+
+        ProjectAttachment a = ProjectAttachment.builder()
+                .project(p)
+                .originalFilename(linkDisplayName(normalizedUrl))
+                .storagePath(null)          // link rows carry no file — see chk_attachments_payload
+                .linkUrl(normalizedUrl)
+                .mimeType(null)
+                .sizeBytes(0L)
+                .kind(kind != null ? kind : AttachmentKind.EVIDENCE)
+                .caption(caption != null && !caption.isBlank() ? caption.trim() : null)
+                .uploadedByUser(p.getSurface() == ProjectSurface.INNOVATION ? resolveInnovator(callerEmail) : null)
+                .uploadedByMember(p.getSurface() == ProjectSurface.CLUB ? resolveActiveMember(callerEmail) : null)
+                .build();
+
+        return ProjectAttachmentResponse.fromEntity(attachmentRepo.save(a));
+    }
+
+    /**
+     * Accept only absolute http/https URLs with a real host.
+     *
+     * This is a security boundary, not a formatting nicety: the frontend
+     * renders stored links as clickable anchors, so {@code javascript:} and
+     * {@code data:} payloads must never reach the database.
+     *
+     * @throws IllegalArgumentException (→ HTTP 400) when the URL is unusable.
+     */
+    private static String validateLinkUrl(String raw) {
+        if (raw == null || raw.isBlank()) {
+            throw new IllegalArgumentException("url is required");
+        }
+        String trimmed = raw.trim();
+        if (trimmed.length() > 2048) {
+            throw new IllegalArgumentException("url must not exceed 2048 characters");
+        }
+
+        URI uri;
+        try {
+            uri = new URI(trimmed);
+        } catch (URISyntaxException ex) {
+            throw new IllegalArgumentException("Invalid URL: " + ex.getReason());
+        }
+        String scheme = uri.getScheme();
+        if (scheme == null
+                || !(scheme.equalsIgnoreCase("http") || scheme.equalsIgnoreCase("https"))) {
+            throw new IllegalArgumentException(
+                    "Evidence links must start with http:// or https://");
+        }
+        if (uri.getHost() == null || uri.getHost().isBlank()) {
+            throw new IllegalArgumentException("Invalid URL: missing host");
+        }
+        return trimmed;
+    }
+
+    /**
+     * Human-readable label for a link row. {@code original_filename} is NOT NULL
+     * and drives the list UI, so links borrow it for their host name.
+     */
+    private static String linkDisplayName(String url) {
+        try {
+            String host = new URI(url).getHost();
+            if (host != null && !host.isBlank()) {
+                String name = host.startsWith("www.") ? host.substring(4) : host;
+                return name.length() > 240 ? name.substring(0, 240) : name;
+            }
+        } catch (URISyntaxException ignored) {
+            // validateLinkUrl already parsed it; fall through to the default.
+        }
+        return "link";
+    }
+
     // ── List ─────────────────────────────────────────────────────────
 
     @Transactional(readOnly = true)
@@ -137,6 +237,12 @@ public class ProjectAttachmentService {
 
         ProjectAttachment a = attachmentRepo.findByIdAndProjectId(attachmentId, projectId)
                 .orElseThrow(() -> new EntityNotFoundException("Attachment not found: " + attachmentId));
+
+        // Link rows have no bytes and a null storage path — streaming one would NPE.
+        if (a.getLinkUrl() != null || a.getStoragePath() == null) {
+            throw new IllegalArgumentException(
+                    "This attachment is a link, not a file. Open its linkUrl instead.");
+        }
 
         InputStream stream;
         try {
@@ -166,6 +272,11 @@ public class ProjectAttachmentService {
 
         attachmentRepo.delete(a);
         attachmentRepo.flush(); // ensure FK is gone before we unlink the file
+
+        // Link rows own no file on disk — the row deletion is the whole job.
+        if (a.getStoragePath() == null) {
+            return;
+        }
 
         try {
             storage.delete(a.getStoragePath());

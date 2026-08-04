@@ -28,6 +28,7 @@ import java.time.temporal.ChronoUnit;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -82,6 +83,10 @@ class AuthControllerWebMvcTest {
     @MockBean private RefreshTokenService refreshTokens;
     @MockBean private JwtService jwtService;
     @MockBean private PasswordResetService passwordReset;
+    // JwtAuthFilter now depends on UserDetailsService (Phase 1 fix). The
+    // @WebMvcTest slice does not boot the security filter chain, so we
+    // stub the filter out to avoid wiring a real UserDetailsService.
+    @MockBean private com.example.Innovation_backend.security.JwtAuthFilter jwtAuthFilter;
     // Defensive: prevents Spring from trying to autowire a real JavaMailSender.
     @MockBean private JavaMailSender javaMailSender;
     @MockBean private EmailService emailService;
@@ -89,7 +94,8 @@ class AuthControllerWebMvcTest {
     private static final String REFRESH_COOKIE_NAME = "refresh_token";
     private static final UserResponse SAMPLE_USER = new UserResponse(
             1L, "u@example.com", "Khadija", "Khamis", "Khadija Khamis",
-            Role.INNOVATOR, null, "active", null, null, null, null, false
+            Role.INNOVATOR, null, "active", null, null, null, null, false,
+            true, true, true, false, false, false
     );
 
     @BeforeEach
@@ -123,7 +129,10 @@ class AuthControllerWebMvcTest {
 
     @Test
     void register_valid_returns201WithBody() throws Exception {
-        when(authService.register(any())).thenReturn(new AuthResponse("jwt", SAMPLE_USER));
+        // Web controller keeps calling the no-audience overload — the
+        // 1-arg signature on AuthService delegates to LinkAudience.WEB.
+        when(authService.register(any()))
+                .thenReturn(new AuthResponse("jwt", SAMPLE_USER));
         // The controller looks up the just-created user to attach a refresh
         // cookie — give it a real User so the cookie path runs.
         when(userService.findByEmail("u@example.com")).thenReturn(
@@ -148,6 +157,7 @@ class AuthControllerWebMvcTest {
                 .andExpect(header().exists("Set-Cookie"))
                 .andExpect(header().string("Set-Cookie",
                         org.hamcrest.Matchers.containsString(REFRESH_COOKIE_NAME)));
+        verify(authService, times(1)).register(any());
     }
 
     @Test
@@ -315,6 +325,8 @@ class AuthControllerWebMvcTest {
     void resendVerification_returns202() throws Exception {
         mvc.perform(post("/api/auth/resend-verification"))
                 .andExpect(status().isAccepted());
+        // The web controller keeps calling the no-audience overload,
+        // which delegates to LinkAudience.WEB inside AuthService.
         verify(authService, times(1)).resendVerification();
     }
 
@@ -322,10 +334,11 @@ class AuthControllerWebMvcTest {
 
     @Test
     void forgotPassword_knownEmail_returns202() throws Exception {
-        when(passwordReset.issueForEmail("u@example.com")).thenReturn(java.util.Optional.of(
-                new PasswordResetService.Issued(
-                        PasswordResetToken.builder().id(1L).build(),
-                        "raw-token")));
+        when(passwordReset.issueForEmail("u@example.com"))
+                .thenReturn(java.util.Optional.of(
+                        new PasswordResetService.Issued(
+                                PasswordResetToken.builder().id(1L).build(),
+                                "raw-token")));
 
         mvc.perform(post("/api/auth/forgot-password")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -350,6 +363,32 @@ class AuthControllerWebMvcTest {
                         .content("{\"email\":\"not-an-email\"}"))
                 .andExpect(status().isBadRequest());
         verify(passwordReset, never()).issueForEmail(anyString());
+    }
+
+    /**
+     * Phase 2 web regression — the mobile surface got a new
+     * {@code POST /api/mobile/auth/resend-verification-by-email} endpoint
+     * and now uses LinkAudience.MOBILE on the service layer. The web
+     * controller must keep calling the no-audience overloads (which
+     * default to WEB inside AuthService / PasswordResetService). This
+     * test asserts the structural separation: the web controller never
+     * reaches for the MOBILE audience overload and the mobile controller
+     * never reaches for the WEB overload (the latter is enforced by
+     * MobileAuthControllerWebMvcTest; here we focus on the web side).
+     */
+    @Test
+    void webSurface_neverUsesMobileAudience() throws Exception {
+        mvc.perform(post("/api/auth/forgot-password")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"u@example.com\"}"))
+                .andExpect(status().isAccepted());
+        mvc.perform(post("/api/auth/resend-verification"))
+                .andExpect(status().isAccepted());
+
+        verify(authService, times(1)).resendVerification(); // 0-arg overload → WEB
+        verify(passwordReset, times(1)).issueForEmail("u@example.com"); // 1-arg overload → WEB
+        verify(authService, never()).resendVerification(LinkAudience.MOBILE);
+        verify(passwordReset, never()).issueForEmail(anyString(), eq(LinkAudience.MOBILE));
     }
 
     // ── POST /api/auth/reset-password ───────────────────────────────

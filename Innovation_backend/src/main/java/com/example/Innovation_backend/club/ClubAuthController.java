@@ -5,6 +5,7 @@ import com.example.Innovation_backend.auth.RefreshTokenService;
 import com.example.Innovation_backend.club.dto.ClubAuthResponse;
 import com.example.Innovation_backend.club.dto.ClubLoginRequest;
 import com.example.Innovation_backend.club.dto.ClubRegisterRequest;
+import com.example.Innovation_backend.club.dto.UniversityResponse;
 import com.example.Innovation_backend.security.CookieUtils;
 import com.example.Innovation_backend.security.JwtService;
 import com.example.Innovation_backend.user.dto.ForgotPasswordRequest;
@@ -18,6 +19,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.net.URI;
+import java.util.List;
 
 /**
  * Auth endpoints for the club surface (separate from /api/auth/*).
@@ -44,6 +46,22 @@ public class ClubAuthController {
     private final CookieUtils cookieUtils;
     private final JwtService jwtService;
     private final PasswordResetService passwordReset;
+    private final UniversityRepository universityRepository;
+
+    /**
+     * Phase 7 Slice A1 — public roster of universities for the mobile
+     * register picker. Returned in display order (shortName ascending)
+     * so the same list comes back deterministically on every request.
+     * Lives under /api/club/auth/** so SecurityConfig's existing
+     * {@code permitAll} rule already covers it.
+     */
+    @GetMapping("/universities")
+    public List<UniversityResponse> universities() {
+        return universityRepository.findAll().stream()
+                .sorted((a, b) -> a.getShortName().compareTo(b.getShortName()))
+                .map(UniversityResponse::from)
+                .toList();
+    }
 
     @PostMapping("/register")
     public ResponseEntity<ClubAuthResponse> register(@Valid @RequestBody ClubRegisterRequest req,

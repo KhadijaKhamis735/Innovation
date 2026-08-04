@@ -52,8 +52,44 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // Public: health + auth endpoints (Phase 2) + read-only public listings
                         .requestMatchers("/api/health").permitAll()
-                        .requestMatchers("/api/auth/**").permitAll()
-                        .requestMatchers("/api/mobile/auth/**").permitAll()
+                        // Public web auth surface — register, login, refresh, logout,
+                        // verify, resend-verification, forgot/reset-password.
+                        // /api/auth/me is explicitly NOT public: it must hit the
+                        // JWT filter and return 401 if the token is missing/invalid.
+                        .requestMatchers(HttpMethod.POST, "/api/auth/register").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/auth/refresh").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/auth/logout").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/auth/forgot-password").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/auth/reset-password").permitAll()
+                        .requestMatchers(HttpMethod.GET,  "/api/auth/verify").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/auth/resend-verification").permitAll()
+                        .requestMatchers("/api/auth/me").authenticated()
+                        // Public mobile auth surface — same set, /me is authenticated.
+                        .requestMatchers(HttpMethod.POST, "/api/mobile/auth/register").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/mobile/auth/login").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/mobile/auth/refresh").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/mobile/auth/logout").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/mobile/auth/forgot-password").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/mobile/auth/reset-password").permitAll()
+                        .requestMatchers(HttpMethod.GET,  "/api/mobile/auth/verify").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/mobile/auth/resend-verification").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/mobile/auth/resend-verification-by-email").permitAll()
+                        .requestMatchers("/api/mobile/auth/me").authenticated()
+                        // Phase 7 Slice A2 — parallel mobile club surface. Mirrors the
+                        // /api/club/auth/** rule above: every endpoint is public; the
+                        // JWT filter rejects calls without a valid bearer token and
+                        // the /me endpoint is explicitly authenticated below.
+                        .requestMatchers(HttpMethod.POST, "/api/mobile/club/auth/register").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/mobile/club/auth/login").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/mobile/club/auth/refresh").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/mobile/club/auth/logout").permitAll()
+                        .requestMatchers(HttpMethod.GET,  "/api/mobile/club/auth/verify").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/mobile/club/auth/resend-verification").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/mobile/club/auth/resend-verification-by-email").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/mobile/club/auth/forgot-password").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/mobile/club/auth/reset-password").permitAll()
+                        .requestMatchers("/api/mobile/club/auth/me").authenticated()
                         .requestMatchers("/api/club/auth/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/opportunities").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/opportunities/*").permitAll()

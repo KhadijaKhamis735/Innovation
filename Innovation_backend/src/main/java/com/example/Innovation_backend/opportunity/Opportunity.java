@@ -3,12 +3,16 @@ package com.example.Innovation_backend.opportunity;
 import com.example.Innovation_backend.user.User;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * An opportunity (grant / accelerator / challenge / etc.) posted by a funder.
@@ -54,6 +58,17 @@ public class Opportunity {
     @Builder.Default
     private OpportunityStatus status = OpportunityStatus.OPEN;
 
+    /**
+     * Phase 8 — decides which application form innovators see when they apply
+     * to this opportunity. Funders pick the type on the post-opportunity
+     * form. Defaults to INNOVATION_APPLICATION so existing rows (and any
+     * legacy path that doesn't set it) get the current full-innovation flow.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "application_form_type", nullable = false, length = 32)
+    @Builder.Default
+    private ApplicationFormType applicationFormType = ApplicationFormType.INNOVATION_APPLICATION;
+
     /** Free-text amount (e.g. "$10,000", "KES 500,000"). Not numeric — display only. */
     @Column(length = 100)
     private String amount;
@@ -64,6 +79,19 @@ public class Opportunity {
 
     @Column(length = 160)
     private String location;
+
+    /** Phase 5 — eligibility / qualification criteria shown on the post form.
+     *  Stored as plain TEXT (no length cap beyond 4000 enforced at the DTO). */
+    @Column(columnDefinition = "TEXT")
+    private String requirements;
+
+    /** Phase 5 — display tags. Stored as a JSONB array of strings so we can
+     *  index and filter them later if needed (e.g. {@code tags @> '["tech"]'}).
+     *  Hibernate maps {@code List<String>} via {@link SqlTypes#JSON} (Hibernate 6). */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(columnDefinition = "jsonb", nullable = false)
+    @Builder.Default
+    private List<String> tags = new ArrayList<>();
 
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)
